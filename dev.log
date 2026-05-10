@@ -1,0 +1,329 @@
+
+> wealth-dashboard@0.1.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use, trying 3001 instead.
+ ⚠ Port 3001 is in use, trying 3002 instead.
+ ⚠ Port 3002 is in use, trying 3003 instead.
+ ⚠ Port 3003 is in use, trying 3004 instead.
+ ⚠ Port 3004 is in use, trying 3005 instead.
+ ⚠ Port 3005 is in use, trying 3006 instead.
+ ⚠ Port 3006 is in use, trying 3007 instead.
+ ⚠ Port 3007 is in use, trying 3008 instead.
+  ▲ Next.js 14.2.2   Reload env: .env.local
+   Reload env: .env.local
+   Reload env: .env.local
+tarting...
+ ✓ Ready in 1402ms
+   Reload env: .env.local
+ ○ Compiling / ...
+ ✓ Compiled / in 8.8s (1430 modules)
+차트 데이터: []
+차트 데이터 없음
+차트 데이터: []
+차트 데이터 없음
+ GET / 200 in 9595ms
+ GET / 200 in 7747ms
+ ✓ Compiled in 1050ms (723 modules)
+ ○ Compiling /api/crypto ...
+ ✓ Compiled /api/crypto in 13.7s (1753 modules)
+ ✓ Compiled (1759 modules)
+(node:49096) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show    Reload env: .env.local
+ ✓ Compiled in 189ms (202 modules)
+   Reload env: .env.local
+ ✓ Compiled in 126ms (202 modules)
+ ✓ Compiled in 207ms (202 modules)
+api/crypto 200 in 17378ms
+ GET /api/crypto 200 in 1694ms
+ ✓ Compiled in 1771ms (1430 modules)
+ ✓ Compiled /api/crypto in 288ms (1753 modules)
+ ✓ Compiled (1757 modules)
+ GET /api/assets 200 in 1901ms
+ GET /api/crypto 200 in 2996ms
+ ✓ Compiled in 820ms (2480 modules)
+ ✓ Compiled /_not-found in 301ms (2469 modules)
+ GET /api/assets 404 in 381ms
+ GET /api/crypto 404 in 380ms
+ ⨯ Error: Cannot find module './276.js'
+Require stack:
+- C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js
+- C:\tmp\Wealth_dashboard\.next\server\app\_not-found\page.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\hot-middleware.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\hot-reloader-webpack.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\start-server.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1456:15)
+    at C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1556:12)
+    at mod.require (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at __webpack_require__.f.require (C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:203:28)
+    at C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:116:40
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:115:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:167:22)
+    at C:\tmp\Wealth_dashboard\.next\server\app\page.js:1:399549
+    at Object.<anonymous> (C:\tmp\Wealth_dashboard\.next\server\app\page.js:1:399595)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object..js (node:internal/modules/cjs/loader:1943:10)
+    at Module.load (node:internal/modules/cjs/loader:1533:32)
+    at Module._load (node:internal/modules/cjs/loader:1335:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1556:12)
+    at mod.require (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at requirePage (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js:109:84)
+    at C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js:103:84
+    at async loadComponentsImpl (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js:103:26)
+    at async DevServer.findPageComponentsImpl (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\next-server.js:714:36)
+    at async DevServer.findPageComponents (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\next-dev-server.js:577:20)
+    at async DevServer.renderPageComponent (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:1910:24)
+    at async DevServer.renderToResponseImpl (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:818:17)
+    at async C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (C:\tmp\Wealth_dashboard\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js:178:21)
+    at async handleRequest (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js:355:24)
+    at async requestHandlerImpl (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js:379:13)
+    at async Server.requestListener (C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\tmp\\Wealth_dashboard\\.next\\server\\webpack-runtime.js',
+    'C:\\tmp\\Wealth_dashboard\\.next\\server\\app\\_not-found\\page.js',
+    'C:\\tmp\\Wealth_dashboard\\node_modules\\next\\dist\\server\\require.js',
+    'C:\\tmp\\Wealth_dashboard\\node_modules\\next\\dist\\server\\load-components.js',
+    'C:\\tmp\\Wealth_dashboard\\node_modules\\next\\dist\\build\\utils.js',
+    'C:\\tmp\\Wealth_dashboard\\node_modules\\next\\dist\\server\\dev\\hot-middleware.js',
+    'C:\\tmp\\Wealth_dashboard\\node_modules\\next\\dist\\server\\dev\\hot-reloader-webpack.js',
+    'C:\\tmp\\Wealth_dashboard\\node_modules\\next\\dist\\server\\lib\\router-utils\\setup-dev-bundler.js',
+    'C:\\tmp\\Wealth_dashboard\\node_modules\\next\\dist\\server\\lib\\router-server.js',
+    'C:\\tmp\\Wealth_dashboard\\node_modules\\next\\dist\\server\\lib\\start-server.js'
+  ],
+  page: '/'
+}
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 3.2s (1643 modules)
+ GET / 500 in 3533ms
+차트 데이터: []
+차트 데이터 없음
+ GET / 200 in 274ms
+ ✓ Compiled /_not-found in 368ms (1646 modules)
+ GET /_next/static/css/app/layout.css?v=1777984660491 404 in 524ms
+ GET /_next/static/chunks/main-app.js?v=1777984660491 404 in 515ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 514ms
+ GET /_next/static/chunks/app/page.js 404 in 514ms
+ GET /_next/static/chunks/app/layout.js 404 in 512ms
+차트 데이터: []
+차트 데이터 없음
+ GET / 200 in 180ms
+ GET /_next/static/css/app/layout.css?v=1777984668657 404 in 40ms
+ GET /_next/static/chunks/main-app.js?v=1777984668657 404 in 53ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 51ms
+ GET /_next/static/chunks/app/layout.js 404 in 51ms
+ GET /_next/static/chunks/app/page.js 404 in 50ms
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'C:\tmp\Wealth_dashboard\.next\server\vendor-chunks\clsx.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/clsx' in C:\tmp\Wealth_dashboard\.next\server for build dependencies doesn't lead to expected result 'C:\tmp\Wealth_dashboard\.next\server\vendor-chunks\clsx.js', but to 'Error: Can't resolve './vendor-chunks/clsx' in 'C:\tmp\Wealth_dashboard\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/clsx (expected C:\tmp\Wealth_dashboard\.next\server\vendor-chunks\clsx.js)
+<w>  at file dependencies C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js
+<w>  at file C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\.next\server\app\page.js
+<w>  at file C:\tmp\Wealth_dashboard\.next\server\app\page.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/d3-path' in C:\tmp\Wealth_dashboard\.next\server for build dependencies doesn't lead to expected result 'C:\tmp\Wealth_dashboard\.next\server\vendor-chunks\d3-path.js', but to 'Error: Can't resolve './vendor-chunks/d3-path' in 'C:\tmp\Wealth_dashboard\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/d3-path (expected C:\tmp\Wealth_dashboard\.next\server\vendor-chunks\d3-path.js)
+<w>  at file dependencies C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js
+<w>  at file C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\.next\server\app\page.js
+<w>  at file C:\tmp\Wealth_dashboard\.next\server\app\page.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/decimal.js-light' in C:\tmp\Wealth_dashboard\.next\server for build dependencies doesn't lead to expected result 'C:\tmp\Wealth_dashboard\.next\server\vendor-chunks\decimal.js-light.js', but to 'Error: Can't resolve './vendor-chunks/decimal.js-light' in 'C:\tmp\Wealth_dashboard\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/decimal.js-light (expected C:\tmp\Wealth_dashboard\.next\server\vendor-chunks\decimal.js-light.js)
+<w>  at file dependencies C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js
+<w>  at file C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\.next\server\app\page.js
+<w>  at file C:\tmp\Wealth_dashboard\.next\server\app\page.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+   Reload env: .env.local
+ ✓ Compiled in 399ms (1643 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'C:\tmp\Wealth_dashboard\.next\server\app\_not-found'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/_not-found/page' in C:\tmp\Wealth_dashboard\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'C:\tmp\Wealth_dashboard\.next\server\app\_not-found\page.js', but to 'Error: Can't resolve '../../../../.next/server/app/_not-found/page' in 'C:\tmp\Wealth_dashboard\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/_not-found/page (expected C:\tmp\Wealth_dashboard\.next\server\app\_not-found\page.js)
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/profits/route' in C:\tmp\Wealth_dashboard\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'C:\tmp\Wealth_dashboard\.next\server\app\api\profits\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/profits/route' in 'C:\tmp\Wealth_dashboard\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/profits/route (expected C:\tmp\Wealth_dashboard\.next\server\app\api\profits\route.js)
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'C:\tmp\Wealth_dashboard\.next\server\app\_not-found'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/_not-found/page' in C:\tmp\Wealth_dashboard\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'C:\tmp\Wealth_dashboard\.next\server\app\_not-found\page.js', but to 'Error: Can't resolve '../../../../.next/server/app/_not-found/page' in 'C:\tmp\Wealth_dashboard\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/_not-found/page (expected C:\tmp\Wealth_dashboard\.next\server\app\_not-found\page.js)
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file dependencies C:\tmp\Wealth_   Reload env: .env.local
+ ✓ Compiled in 121ms (219 modules)
+ ✓ Compiled in 153ms (219 modules)
+de_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\swc\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\swc\index.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-barrel-loader.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-barrel-loader.js
+<w>  at resolve commonjs C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-barrel-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/profits/route' in C:\tmp\Wealth_dashboard\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'C:\tmp\Wealth_dashboard\.next\server\app\api\profits\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/profits/route' in 'C:\tmp\Wealth_dashboard\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/profits/route (expected C:\tmp\Wealth_dashboard\.next\server\app\api\profits\route.js)
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\swc\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\swc\index.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-barrel-loader.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-barrel-loader.js
+<w>  at resolve commonjs C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-barrel-loader.js
+차트 데이터: []
+차트 데이터 없음
+ GET / 200 in 124ms
+ ✓ Compiled /_not-found in 497ms (1646 modules)
+ GET /_next/static/css/app/layout.css?v=1777985284462 404 in 618ms
+ GET /_next/static/chunks/main-app.js?v=1777985284462 404 in 616ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 616ms
+ GET /_next/static/chunks/app/page.js 404 in 616ms
+ GET /_next/static/chunks/app/layout.js 404 in 615ms
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'C:\tmp\Wealth_dashboard\.next\server\app\api'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/profits/route' in C:\tmp\Wealth_dashboard\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'C:\tmp\Wealth_dashboard\.next\server\app\api\profits\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/profits/route' in 'C:\tmp\Wealth_dashboard\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/profits/route (expected C:\tmp\Wealth_dashboard\.next\server\app\api\profits\route.js)
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at fil   Reload env: .env.local
+ ✓ Compiled in 258ms (1641 modules)
+ ✓ Compiled in 236ms (1641 modules)
+:\tmp\Wealth_dashboard\node_modules\next\dist\build\handle-externals.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'C:\tmp\Wealth_dashboard\.next\server\app\api'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/profits/route' in C:\tmp\Wealth_dashboard\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'C:\tmp\Wealth_dashboard\.next\server\app\api\profits\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/profits/route' in 'C:\tmp\Wealth_dashboard\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/profits/route (expected C:\tmp\Wealth_dashboard\.next\server\app\api\profits\route.js)
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs C:\tmp\Wealth_dashboard\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+   Reload env: .env.local
+ ✓ Compiled in 266ms (1643 modules)
+ ✓ Compiled in 338ms (1643 modules)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Reload env: .env.local
+ ✓ Compiled in 660ms (1643 modules)
+ ✓ Compiled in 924ms (1657 modules)
+ ✓ Compiled in 742ms (1657 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename 'C:\tmp\Wealth_dashboard\.next\cache\webpack\client-development\1.pack.gz_' -> 'C:\tmp\Wealth_dashboard\.next\cache\webpack\client-development\1.pack.gz'
+   Reload env: .env.local
+ ✓ Compiled in 356ms (1643 modules)
+   Reload env: .env.local
+ ✓ Compiled in 223ms (1643 modules)
+ ✓ Compiled in 210ms (1643 modules)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Reload env: .env.local
+ ✓ Compiled /_not-found in 810ms (1646 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /_next/static/webpack/e0e052c518500cb6.webpack.hot-update.json 404 in 353ms
+ GET / 200 in 20ms
+차트 데이터: []
+차트 데이터 없음
+차트 데이터: []
+차트 데이터 없음
+ GET / 200 in 86ms
+ GET /_next/static/css/app/layout.css?v=1777952038476 404 in 24ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 33ms
+ GET /_next/static/chunks/app/page.js 404 in 33ms
+ GET /_next/static/chunks/main-app.js?v=1777952038476 404 in 32ms
+ GET /_next/static/chunks/app/layout.js 404 in 29ms
+ ✓ Compiled in 1572ms (1657 modules)
+ ✓ Compiled in 783ms (1657 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: EPERM: operation not permitted, rename 'C:\tmp\Wealth_dashboard\.next\cache\webpack\client-development\1.pack.gz_' -> 'C:\tmp\Wealth_dashboard\.next\cache\webpack\client-development\1.pack.gz'
+   Reload env: .env.local
+ ✓ Compiled in 432ms (1643 modules)
+   Reload env: .env.local
+ ✓ Compiled in 229ms (1643 modules)
+ ✓ Compiled in 347ms (1643 modules)

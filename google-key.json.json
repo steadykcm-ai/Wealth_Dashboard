@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "finance-dashboard-494013",
+  "private_key_id": "810396b34ace3525b847a987881958e6d4b7762d",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCzm0UCkkzBV+fo\neVV1A13vGSKEeQ8s6qKjA3mETBu1x8KrDRPo7XSpUW7rrF9qIu0CVWZNuK6+kSQd\nDPqnzaM7xngoUlW+3UrEuZ42CfZwfmZVqVy4Db2GCqP6E5+6mj0zY3BRySM/jK7l\nRdA5S2HukuzZ2TZHjDRvPi1X8I0Qz/qbOKw6nbhIG6g/pW3rcr68TNScqkgMgDPF\n8TLkFiCrjFeTeqbkATs+7qhQGTUHVbL72ss6Z+wMvM5CodSFFO6pjpo+PatLVB0u\nwJHcqcP/4mR97uNXqY646b9OhueOxqP1c9rg8NKC6nIZ0eMLOvwF/5LehKtuaqh0\n5mTYMTeTAgMBAAECggEASyLLEWLTslSMg0/zBKMWclZw/rtIMnGr/QcQmFxggUDi\nur0bVae01Lpo7TWsqtGWlhHU3PHERJuiYHbUC0v3HCQQk0mybkjUJQ1D1vZ+/pua\nQv65d5Pj88XSyGTaPu2UacGRNN2wnb7EUczNaZKUEwKrDA2W7AKG0vzPakkLMnsj\naZoaq9LkW/UczXtD/cLQB4JPjzxoUxj9jq/no0CcRc4Iyws+Is9DXwd8FqSivhye\ntNApmpdqp+ZV6/wDiMIE9QvUWE6d8nS2kvyqA7GtdJT71W9Z/jaRUmTbXv4L5vfq\n4NMmCLfQFGy45PTn0vPV5ZYVOzI+jvrU4ls9ZQCcJQKBgQDkM5qALwmo25+fF7Pj\n+sHvdI3leOtJh7yQdHc579MhqPt1clsfYvmLSwdwRZ0kIELFzmzPcFUWVVYxzT2i\n/8dyjZzjwFtag3x7mAHpLCkDh1G5rBjIYTCHSHWtOFgMJ9hgX/62pKHi/VOEnCAk\nbMJgCOtp6iBjuOLCKK77pgLBzwKBgQDJfD5+TwujdNGFtRGo7lDs6g9iiTYyCIIG\n57T5BdBT0qN/IOAZL7J6DxhdjY1ej1E333oqPtQqDczd/r24faxpcpoxq4VqOqnR\nF1oP3pmgGayFimrM05LRmZVKcbbOeDYaYU2Ugp7nQ+vSHKgkocU6p+OHEZ0MpJzI\nuDizqh7y/QKBgFulndb9DRQTn/d0vXpBqsFQPex6s4PET6Z0H63U8yYBh3uTgaUJ\nSs72QvaD/qgTjL2EOY7VvlZJz2QQ2UAtGRyYYvnUttuTEttQIPRUF+Si4999jjZr\nUeIC57+5cSLwnaWW5+TSGXHf6zrGuOHoC+glrOXMcVWbWvY/AIdwFIthAoGAJO3s\n1mHOlEsZDBTAA+KKWqIb58eWc10z1+goN2xlXrfA19BCwtsHL3AM2zjSrH5AOKlx\nTsTtRjf5UMccJvCB5WHn+Sqi7XGLJpPNIhN+vOV3xZI1OQ2eX2RzBI4LH5TQ9czX\n11yJm4HLe1tdRjmQWMvk3CDSVDrnsbJyUhvgSFECgYEA4a95FFfdCz30aFEwaihU\nGoblYW9qLs1C3KpcfgwxM58mt9iDbOVkq5BZOo1+CEG40ft6Juj/cyvVF+V5BvOp\n3UB5BCLERXQJqUhW1ssLe+ag4nE3GHNOSkiSIppGXkBXIowTxLur8vZdO9UMieO6\nL6EPyupZqxPyRDdX2Dz005A=\n-----END PRIVATE KEY-----\n",
+  "client_email": "finance-dashboard@finance-dashboard-494013.iam.gserviceaccount.com",
+  "client_id": "100053541265354102328",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/finance-dashboard%40finance-dashboard-494013.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

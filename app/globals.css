@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f8f9fc;
+  --fg: #0f1923;
+}
+
+.dark {
+  --bg: #0f1923;
+  --fg: #f8f9fc;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+/* 스크롤바 숨김 (모바일 탭 등) */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3d47cf44;
+  border-radius: 3px;
+}

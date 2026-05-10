@@ -1,0 +1,100 @@
+[    2963ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom.development.js:38559
+[  264998ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[  265639ms] [LOG] [Fast Refresh] done in 641ms @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  265688ms] [LOG] [Fast Refresh] done in 691ms @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  294423ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[  294588ms] [ERROR] ./app/page.tsx
+Error: 
+  x Unexpected token `div`. Expected jsx identifier
+     ,-[C:\tmp\Wealth_dashboard\app\page.tsx:199:1]
+ 199 |   })();
+ 200 | 
+ 201 |   return (
+ 202 |     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
+     :      ^^^
+ 203 |       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+ 204 | 
+ 205 |       <main className="flex-1 px-8 py-8 overflow-auto">
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:32
+[  295505ms] [LOG] [Fast Refresh] done in 1082ms @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  296088ms] [LOG] [Fast Refresh] done in 1665ms @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  296217ms] [ERROR] ./app/page.tsx
+Error: 
+  x Unexpected token `div`. Expected jsx identifier
+     ,-[C:\tmp\Wealth_dashboard\app\page.tsx:199:1]
+ 199 |   })();
+ 200 | 
+ 201 |   return (
+ 202 |     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
+     :      ^^^
+ 203 |       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+ 204 | 
+ 205 |       <main className="flex-1 px-8 py-8 overflow-auto">
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:32
+[  296382ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/?_rsc=r3yhw:0
+[  296399ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/?_rsc=r3yhw:0
+[  296412ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/?_rsc=r3yhw:0
+[  296439ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/:0
+[  296778ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///./node_modules/react-dom/cjs/react-dom.development.js:29889
+[  296862ms] ModuleBuildError: Module build failed (from ./node_modules/next/dist/build/webpack/loaders/next-swc-loader.js):
+Error: 
+  x Unexpected token `div`. Expected jsx identifier
+     ,-[C:\tmp\Wealth_dashboard\app\page.tsx:199:1]
+ 199 |   })();
+ 200 | 
+ 201 |   return (
+ 202 |     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
+     :      ^^^
+ 203 |       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+ 204 | 
+ 205 |       <main className="flex-1 px-8 py-8 overflow-auto">
+     `----
+
+
+Caused by:
+    Syntax Error
+    at processResult (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\webpack\bundle5.js:28:400590)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\webpack\bundle5.js:28:402302)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js:1:8645)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js:1:5019)
+    at r.callback (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js:1:4039)
+[  296858ms] [LOG] [HMR] connected @ webpack-internal:///./node_modules/next/dist/client/components/react-dev-overlay/pages/websocket.js:38
+[  296861ms] [ERROR] ./app/page.tsx
+Error: 
+  x Unexpected token `div`. Expected jsx identifier
+     ,-[C:\tmp\Wealth_dashboard\app\page.tsx:199:1]
+ 199 |   })();
+ 200 | 
+ 201 |   return (
+ 202 |     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
+     :      ^^^
+ 203 |       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+ 204 | 
+ 205 |       <main className="flex-1 px-8 py-8 overflow-auto">
+     `----
+
+Caused by:
+    Syntax Error @ webpack-internal:///./node_modules/next/dist/client/components/react-dev-overlay/internal/helpers/hydration-error-info.js:62
+[  299501ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/components/react-dev-overlay/pages/hot-reloader-client.js:221
+[  300030ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/components/react-dev-overlay/pages/hot-reloader-client.js:221
+[  300172ms] [WARNING] [Fast Refresh] performing full reload
+
+Fast Refresh will perform a full reload when you edit a file that's imported by modules outside of the React rendering tree.
+You might have a file which exports a React component but also exports a value that is imported by a non-React component file.
+Consider migrating the non-React component export to a separate file and importing it into both files.
+
+It is also possible the parent component of the component you edited is a class component, which disables Fast Refresh.
+Fast Refresh requires at least one parent function component in your React tree. @ webpack-internal:///./node_modules/next/dist/client/components/react-dev-overlay/pages/hot-reloader-client.js:347
+[  300570ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom.development.js:38559

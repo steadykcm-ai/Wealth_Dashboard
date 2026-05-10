@@ -1,0 +1,74 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e5]: Wealth.
+    - navigation [ref=e6]:
+      - button "전체 자산" [ref=e7] [cursor=pointer]
+      - button "개별주식" [ref=e8] [cursor=pointer]
+      - button "개인연금" [ref=e9] [cursor=pointer]
+      - button "IRP" [ref=e10] [cursor=pointer]
+      - button "암호화폐" [ref=e11] [cursor=pointer]
+  - main [ref=e12]:
+    - generic [ref=e13]:
+      - heading "전체 자산 현황" [level=1] [ref=e14]
+      - button "↻ 새로고침" [ref=e15] [cursor=pointer]
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]: 총 현재가치
+        - generic [ref=e19]: —
+      - generic [ref=e20]:
+        - generic [ref=e21]: 평가손익
+        - generic [ref=e22]: —
+      - generic [ref=e23]:
+        - generic [ref=e24]: 수익률
+        - generic [ref=e25]: —
+    - table [ref=e27]:
+      - rowgroup [ref=e28]:
+        - row "종목 수량 평균매입가 현재가 현재가치 평가손익 수익률" [ref=e29]:
+          - columnheader "종목" [ref=e30]
+          - columnheader "수량" [ref=e31]
+          - columnheader "평균매입가" [ref=e32]
+          - columnheader "현재가" [ref=e33]
+          - columnheader "현재가치" [ref=e34]
+          - columnheader "평가손익" [ref=e35]
+          - columnheader "수익률" [ref=e36]
+      - rowgroup [ref=e37]:
+        - row [ref=e38]:
+          - cell [ref=e39]
+          - cell [ref=e41]
+          - cell [ref=e43]
+          - cell [ref=e45]
+          - cell [ref=e47]
+          - cell [ref=e49]
+          - cell [ref=e51]
+        - row [ref=e53]:
+          - cell [ref=e54]
+          - cell [ref=e56]
+          - cell [ref=e58]
+          - cell [ref=e60]
+          - cell [ref=e62]
+          - cell [ref=e64]
+          - cell [ref=e66]
+        - row [ref=e68]:
+          - cell [ref=e69]
+          - cell [ref=e71]
+          - cell [ref=e73]
+          - cell [ref=e75]
+          - cell [ref=e77]
+          - cell [ref=e79]
+          - cell [ref=e81]
+        - row [ref=e83]:
+          - cell [ref=e84]
+          - cell [ref=e86]
+          - cell [ref=e88]
+          - cell [ref=e90]
+          - cell [ref=e92]
+          - cell [ref=e94]
+          - cell [ref=e96]
+        - row [ref=e98]:
+          - cell [ref=e99]
+          - cell [ref=e101]
+          - cell [ref=e103]
+          - cell [ref=e105]
+          - cell [ref=e107]
+          - cell [ref=e109]
+          - cell [ref=e111]

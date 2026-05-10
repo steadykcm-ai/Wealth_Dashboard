@@ -1,0 +1,78 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]: Wealth.
+      - navigation [ref=e6]:
+        - button "전체 자산" [ref=e7] [cursor=pointer]
+        - button "개별주식" [ref=e8] [cursor=pointer]
+        - button "개인연금" [ref=e9] [cursor=pointer]
+        - button "IRP" [ref=e10] [cursor=pointer]
+        - button "암호화폐" [ref=e11] [cursor=pointer]
+    - main [ref=e12]:
+      - generic [ref=e13]:
+        - heading "전체 자산 현황" [level=1] [ref=e14]
+        - button "↻ 새로고침" [ref=e15] [cursor=pointer]
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - generic [ref=e18]: 현재가치
+          - generic [ref=e19]: —
+        - generic [ref=e20]:
+          - generic [ref=e21]: 평가손익
+          - generic [ref=e22]: —
+        - generic [ref=e23]:
+          - generic [ref=e24]: 수익률
+          - generic [ref=e25]: —
+      - generic [ref=e46]:
+        - generic [ref=e47]: 전체 종목
+        - table [ref=e49]:
+          - rowgroup [ref=e50]:
+            - row "종목 수량 평균매입가 현재가 현재가치 평가손익 수익률" [ref=e51]:
+              - columnheader "종목" [ref=e52]
+              - columnheader "수량" [ref=e53]
+              - columnheader "평균매입가" [ref=e54]
+              - columnheader "현재가" [ref=e55]
+              - columnheader "현재가치" [ref=e56]
+              - columnheader "평가손익" [ref=e57]
+              - columnheader "수익률" [ref=e58]
+          - rowgroup [ref=e59]:
+            - row [ref=e60]:
+              - cell [ref=e61]
+              - cell [ref=e63]
+              - cell [ref=e65]
+              - cell [ref=e67]
+              - cell [ref=e69]
+              - cell [ref=e71]
+              - cell [ref=e73]
+            - row [ref=e75]:
+              - cell [ref=e76]
+              - cell [ref=e78]
+              - cell [ref=e80]
+              - cell [ref=e82]
+              - cell [ref=e84]
+              - cell [ref=e86]
+              - cell [ref=e88]
+            - row [ref=e90]:
+              - cell [ref=e91]
+              - cell [ref=e93]
+              - cell [ref=e95]
+              - cell [ref=e97]
+              - cell [ref=e99]
+              - cell [ref=e101]
+              - cell [ref=e103]
+            - row [ref=e105]:
+              - cell [ref=e106]
+              - cell [ref=e108]
+              - cell [ref=e110]
+              - cell [ref=e112]
+              - cell [ref=e114]
+              - cell [ref=e116]
+              - cell [ref=e118]
+            - row [ref=e120]:
+              - cell [ref=e121]
+              - cell [ref=e123]
+              - cell [ref=e125]
+              - cell [ref=e127]
+              - cell [ref=e129]
+              - cell [ref=e131]
+              - cell [ref=e133]
+  - alert [ref=e135]

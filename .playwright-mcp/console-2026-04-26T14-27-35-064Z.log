@@ -1,0 +1,170 @@
+[     716ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3004/:0
+[    4084ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom.development.js:38559
+[    4205ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3005/favicon.ico:0
+[   14532ms] [ERROR] Warning: Each child in a list should have a unique "key" prop.%s%s See https://reactjs.org/link/warning-keys for more information.%s 
+
+Check the render method of `DashboardPage`.  
+    at DashboardPage (webpack-internal:///(app-pages-browser)/./app/page.tsx:1994:104)
+    at ClientPageRoot (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/client-page.js:14:11)
+    at InnerLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:243:11)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:76:9)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at LoadingBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:349:11)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at InnerScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:153:9)
+    at ScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:228:11)
+    at RenderFromTemplateContext (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/render-from-template-context.js:16:44)
+    at OuterLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:370:11)
+    at body
+    at html
+    at RootLayout (Server)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:76:9)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at DevRootNotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/dev-root-not-found-boundary.js:33:11)
+    at ReactDevOverlay (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/ReactDevOverlay.js:87:9)
+    at HotReload (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:321:11)
+    at Router (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/app-router.js:207:11)
+    at ErrorBoundaryHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:113:9)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at AppRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/app-router.js:585:13)
+    at ServerRoot (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:112:27)
+    at Root (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:117:11) @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:32
+[  127150ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[  127189ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[  127321ms] [LOG] [Fast Refresh] done in 133ms @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  127517ms] [LOG] [Fast Refresh] done in 330ms @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  127871ms] [LOG] [Fast Refresh] done in 683ms @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  193746ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[  195486ms] [LOG] [Fast Refresh] done in 1741ms @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  196147ms] [ERROR] Failed to fetch RSC payload for http://localhost:3005/. Falling back to browser navigation. TypeError: Failed to fetch
+    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:58:27)
+    at fastRefreshReducerImpl (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/reducers/fast-refresh-reducer.js:33:67)
+    at clientReducer (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/router-reducer.js:41:67)
+    at Object.action (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/shared/lib/router/action-queue.js:150:55)
+    at runAction (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/shared/lib/router/action-queue.js:56:38)
+    at dispatchAction (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/shared/lib/router/action-queue.js:113:9)
+    at Object.dispatch (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/shared/lib/router/action-queue.js:145:40)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/use-reducer-with-devtools.js:130:21)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/app-router.js:304:25)
+    at startTransition (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react/cjs/react.development.js:2597:25)
+    at Object.fastRefresh (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/app-router.js:303:48)
+    at processMessage (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:297:31)
+    at WebSocket.handler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:395:17) @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:32
+[  196150ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3005/:0
+[  196615ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///./node_modules/react-dom/cjs/react-dom.development.js:29889
+[  196655ms] Error: Cannot find module './276.js'
+Require stack:
+- C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js
+- C:\tmp\Wealth_dashboard\.next\server\app\api\crypto\route.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\hot-middleware.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\hot-reloader-webpack.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\start-server.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1456:15)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require-hook.js:55:36)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1556:12)
+    at mod.require (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at __webpack_require__.f.require (file://C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:203:28)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:116:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (file://C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:115:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (file://C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:167:22)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\.next\server\app\page.js:1:37658)
+    at Object.<anonymous> (file://C:\tmp\Wealth_dashboard\.next\server\app\page.js:1:37704)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object..js (node:internal/modules/cjs/loader:1943:10)
+    at Module.load (node:internal/modules/cjs/loader:1533:32)
+    at Module._load (node:internal/modules/cjs/loader:1335:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1556:12)
+    at mod.require (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at requirePage (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js:109:84)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js:103:84)
+    at async loadComponentsImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js:103:26)
+    at async DevServer.findPageComponentsImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\next-server.js:714:36)
+    at async DevServer.findPageComponents (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\next-dev-server.js:577:20)
+    at async DevServer.renderPageComponent (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:1910:24)
+    at async DevServer.renderToResponseImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:818:17)
+    at async (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\next-dev-server.js:339:20)
+    at async Span.traceAsyncFn (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js:178:21)
+    at async handleRequest (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js:355:24)
+    at async requestHandlerImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js:379:13)
+    at async Server.requestListener (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\start-server.js:141:13)
+[  196656ms] [LOG] [HMR] connected @ webpack-internal:///./node_modules/next/dist/client/components/react-dev-overlay/pages/websocket.js:38
+[  200873ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3004/:0
+[  201223ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///./node_modules/react-dom/cjs/react-dom.development.js:29889
+[  201272ms] Error: Cannot find module './276.js'
+Require stack:
+- C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js
+- C:\tmp\Wealth_dashboard\.next\server\app\page.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\build\utils.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\hot-middleware.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\hot-reloader-webpack.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js
+- C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\start-server.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1456:15)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require-hook.js:55:36)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1556:12)
+    at mod.require (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at __webpack_require__.f.require (file://C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:198:28)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:111:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (file://C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:110:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (file://C:\tmp\Wealth_dashboard\.next\server\webpack-runtime.js:162:22)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\.next\server\app\page.js:1:37658)
+    at Object.<anonymous> (file://C:\tmp\Wealth_dashboard\.next\server\app\page.js:1:37704)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object..js (node:internal/modules/cjs/loader:1943:10)
+    at Module.load (node:internal/modules/cjs/loader:1533:32)
+    at Module._load (node:internal/modules/cjs/loader:1335:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1556:12)
+    at mod.require (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at requirePage (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\require.js:109:84)
+    at <unknown> (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js:103:84)
+    at async loadComponentsImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\load-components.js:103:26)
+    at async DevServer.findPageComponentsImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\next-server.js:714:36)
+    at async DevServer.findPageComponents (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\next-dev-server.js:577:20)
+    at async DevServer.renderPageComponent (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:1910:24)
+    at async DevServer.renderToResponseImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\base-server.js:818:17)
+    at async (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\next-dev-server.js:339:20)
+    at async Span.traceAsyncFn (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js:178:21)
+    at async handleRequest (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js:355:24)
+    at async requestHandlerImpl (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\router-server.js:379:13)
+    at async Server.requestListener (file://C:\tmp\Wealth_dashboard\node_modules\next\dist\server\lib\start-server.js:141:13)
+[  201272ms] [LOG] [HMR] connected @ webpack-internal:///./node_modules/next/dist/client/components/react-dev-overlay/pages/websocket.js:38
