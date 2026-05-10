@@ -36,4 +36,7 @@ next-env.d.ts
 google-key.json.json
 .env.local.vercel
 
+# playwright logs
+.playwright-mcp/
+
 .vercel
