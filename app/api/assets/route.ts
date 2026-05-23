@@ -18,9 +18,7 @@ async function buildAssetSummaryFromSupabase(): Promise<AssetSummary> {
   const totalCash = (cashData || []).reduce((sum, record) => sum + (record.amount || 0), 0);
 
   const codes = (assets || []).map((a) => a.code).filter((c) => c);
-  console.log("[DEBUG] Assets count:", assets?.length, "Codes extracted:", codes);
   const prices = await fetchStockPrices(codes);
-  console.log("[DEBUG] Prices result:", prices);
 
   // 자산유형별로 그룹화
   const groups: Record<string, any> = {};

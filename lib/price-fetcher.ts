@@ -6,9 +6,7 @@ export async function fetchStockPrices(
   if (codes.length === 0) return {};
 
   const validCodes = codes.filter((c) => c && typeof c === "string");
-  console.log("📊 Fetching prices for KRX codes:", validCodes);
   if (validCodes.length === 0) {
-    console.log("⚠️  No valid codes found");
     return {};
   }
 
