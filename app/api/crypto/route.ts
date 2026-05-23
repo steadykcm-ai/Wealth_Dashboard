@@ -1,91 +1,87 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { fetchUpbitPrices } from "@/lib/upbit";
+import { fetchUpbitData } from "@/lib/upbit-private";
 import { fetchBithumbData } from "@/lib/bithumb-private";
-import type { AssetItem, ExchangeGroup, CryptoApiResponse, CryptoAssetRow } from "@/lib/types";
+import type { AssetItem, ExchangeGroup, CryptoApiResponse } from "@/lib/types";
 
 export const revalidate = 0;
 
+async function buildExchange(exchangeName: string, holdings: { currency: string; balance: number; avgPrice: number }[], krwBalance: number, upbitPrices: Record<string, number>): Promise<ExchangeGroup> {
+  const exchange: ExchangeGroup = {
+    exchange: exchangeName,
+    items: [],
+    cash: krwBalance,
+    totalInvest: 0,
+    totalValue: 0,
+    totalProfitLoss: 0,
+    returnRate: 0,
+  };
+
+  holdings.forEach((holding) => {
+    const currentPrice = upbitPrices[holding.currency] || 0;
+    const investAmount = holding.balance * holding.avgPrice;
+    const currentValue = holding.balance * currentPrice;
+    const profitLoss = currentValue - investAmount;
+
+    const item: AssetItem = {
+      name: holding.currency,
+      quantity: holding.balance,
+      avgPrice: holding.avgPrice,
+      currentPrice,
+      investAmount,
+      currentValue,
+      profitLoss,
+      returnRate: investAmount > 0 ? (profitLoss / investAmount) * 100 : 0,
+    };
+
+    exchange.items.push(item);
+    exchange.totalInvest += investAmount;
+    exchange.totalValue += currentValue;
+    exchange.totalProfitLoss += profitLoss;
+  });
+
+  exchange.returnRate = exchange.totalInvest > 0 ? (exchange.totalProfitLoss / exchange.totalInvest) * 100 : 0;
+  return exchange;
+}
+
 export async function GET() {
   try {
-    // Supabase에서 암호화폐 자산 조회
-    const { data: cryptoAssets, error } = await supabase
-      .from("crypto_assets")
-      .select("*")
-      .eq("is_cash", false);
+    // 모든 거래소 데이터 병렬 조회
+    const [bithumbData, upbitData] = await Promise.all([
+      fetchBithumbData().catch(() => ({ holdings: [], krwBalance: 0 })),
+      fetchUpbitData().catch(() => ({ holdings: [], krwBalance: 0 })),
+    ]);
 
-    if (error) throw error;
+    // 모든 티커 수집해서 현재가 한번에 조회
+    const allTickers = [
+      ...bithumbData.holdings.map((h) => h.currency),
+      ...upbitData.holdings.map((h) => h.currency),
+    ];
+    const upbitPrices = await fetchUpbitPrices([...new Set(allTickers)]);
 
-    // 현재가 조회 (Upbit API)
-    const tickers = (cryptoAssets || [])
-      .map((asset) => asset.ticker)
-      .filter((ticker) => ticker && ticker !== "CASH");
+    // 각 거래소별 그룹화
+    const exchanges: ExchangeGroup[] = [];
 
-    const upbitPrices: Record<string, number> = await fetchUpbitPrices(tickers).catch(() => ({}));
+    if (bithumbData.holdings.length > 0) {
+      const bithumbExchange = await buildExchange("Bithumb", bithumbData.holdings, bithumbData.krwBalance, upbitPrices);
+      exchanges.push(bithumbExchange);
+    }
 
-    // Bithumb 현재가도 조회
-    const bithumbData = await fetchBithumbData().catch(() => ({ holdings: [], krwBalance: 0 }));
-    const bithumbPrices: Record<string, number> = {};
-    bithumbData.holdings.forEach((holding) => {
-      bithumbPrices[holding.currency] = holding.currentPrice;
-    });
-
-    // 환전소별로 그룹화
-    const exchangeMap: Record<string, ExchangeGroup> = {};
-
-    (cryptoAssets || []).forEach((asset: CryptoAssetRow) => {
-      const exchange = asset.exchange;
-
-      if (!exchangeMap[exchange]) {
-        exchangeMap[exchange] = {
-          exchange,
-          items: [],
-          cash: 0,
-          totalInvest: 0,
-          totalValue: 0,
-          totalProfitLoss: 0,
-          returnRate: 0,
-        };
-      }
-
-      const currentPrice = upbitPrices[asset.ticker] || bithumbPrices[asset.ticker] || asset.avg_price;
-      const investAmount = asset.quantity * asset.avg_price;
-      const currentValue = asset.quantity * currentPrice;
-      const profitLoss = currentValue - investAmount;
-
-      const item: AssetItem = {
-        name: asset.name,
-        quantity: asset.quantity,
-        avgPrice: asset.avg_price,
-        currentPrice,
-        investAmount,
-        currentValue,
-        profitLoss,
-        returnRate: investAmount > 0 ? (profitLoss / investAmount) * 100 : 0,
-      };
-
-      exchangeMap[exchange].items.push(item);
-      exchangeMap[exchange].totalInvest += investAmount;
-      exchangeMap[exchange].totalValue += currentValue;
-      exchangeMap[exchange].totalProfitLoss += profitLoss;
-    });
-
-    // 환전소별 합계 계산
-    const exchanges = Object.values(exchangeMap).map((ex) => ({
-      ...ex,
-      returnRate: ex.totalInvest > 0 ? (ex.totalProfitLoss / ex.totalInvest) * 100 : 0,
-    }));
+    if (upbitData.holdings.length > 0) {
+      const upbitExchange = await buildExchange("Upbit", upbitData.holdings, upbitData.krwBalance, upbitPrices);
+      exchanges.push(upbitExchange);
+    }
 
     // 전체 합계
     const totalInvest = exchanges.reduce((sum, ex) => sum + ex.totalInvest, 0);
-    const totalValue = exchanges.reduce((sum, ex) => sum + ex.totalValue, 0);
+    const totalCash = bithumbData.krwBalance + upbitData.krwBalance;
+    const totalValue = exchanges.reduce((sum, ex) => sum + ex.totalValue, 0) + totalCash;
     const totalProfitLoss = totalValue - totalInvest;
-    const totalCash = bithumbData.krwBalance;
 
     const response: CryptoApiResponse = {
       exchanges,
       totalInvest,
-      totalValue: totalValue + totalCash,
+      totalValue,
       totalProfitLoss,
       returnRate: totalInvest > 0 ? (totalProfitLoss / totalInvest) * 100 : 0,
       updatedAt: new Date().toISOString(),

@@ -624,12 +624,14 @@ function MobileHeader({
   onRefetch,
   onUpdateCrypto,
   updatingCrypto,
+  refreshing,
 }: {
   activeTab: string;
   onTabChange: (t: string) => void;
   onRefetch: () => void;
   onUpdateCrypto: () => Promise<void>;
   updatingCrypto: boolean;
+  refreshing: boolean;
 }) {
   const { theme, setTheme } = useTheme();
   return (
@@ -660,10 +662,12 @@ function MobileHeader({
           </button>
           <button
             onClick={onRefetch}
-            className="text-xs font-medium text-white px-3 py-1.5 rounded-lg"
+            disabled={refreshing}
+            className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
             style={{ background: "#3d47cf" }}
+            title="주식 가격 새로고침"
           >
-            ↻
+            {refreshing ? "⏳" : "↻"}
           </button>
         </div>
       </div>
@@ -1308,7 +1312,7 @@ function ExchangeSection({ group }: { group: ExchangeGroup }) {
 
 // ── 메인 페이지 ─────────────────────────────────────────
 export default function DashboardPage() {
-  const { data, loading, error, refetch } = useAssets();
+  const { data, loading, error, refreshing, refetch } = useAssets();
   const { data: cryptoData, loading: cryptoLoading, error: cryptoError, refetch: cryptoRefetch } = useCrypto();
   const [activeTab, setActiveTab] = useState<string>("전체");
   const [itemOverrides, setItemOverrides] = useState<Record<string, Partial<AssetItem>>>({});
@@ -1470,12 +1474,13 @@ export default function DashboardPage() {
 
   const isCryptoTab = activeTab === "암호화폐";
 
-  // 전체 탭에서 암호화폐 그룹을 거래소 API 데이터로 교체
+  // 전체 탭에서 암호화폐 그룹을 거래소 API 데이터로 추가/교체
   const adjustedGroups: AssetGroup[] = (() => {
     if (!summary) return [];
-    if (!cryptoData) return summary.groups;
-    return summary.groups.map((g) => {
+
+    let groups = summary.groups.map((g) => {
       if (g.category !== "암호화폐") return g;
+      if (!cryptoData) return g;
       return {
         category: "암호화폐" as AssetCategory,
         items: cryptoData.exchanges.flatMap((e) => e.items),
@@ -1487,6 +1492,22 @@ export default function DashboardPage() {
         accounts: [],
       };
     });
+
+    // 암호화폐 그룹이 없고 cryptoData가 있으면 추가
+    if (!groups.some((g) => g.category === "암호화폐") && cryptoData) {
+      groups.push({
+        category: "암호화폐" as AssetCategory,
+        items: cryptoData.exchanges.flatMap((e) => e.items),
+        cash: cryptoData.exchanges.reduce((s, e) => s + e.cash, 0),
+        totalInvest: cryptoData.totalInvest,
+        totalValue: cryptoData.totalValue,
+        totalProfitLoss: cryptoData.totalProfitLoss,
+        returnRate: cryptoData.returnRate,
+        accounts: [],
+      });
+    }
+
+    return groups;
   })();
 
   const isEditable = activeTab !== "전체" && !isCryptoTab;
@@ -1595,7 +1616,7 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refetch} onUpdateCrypto={updateCryptoLogTotal} updatingCrypto={updatingCrypto} />
+      <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refetch} onUpdateCrypto={updateCryptoLogTotal} updatingCrypto={updatingCrypto} refreshing={refreshing} />
 
       <main className="flex-1 overflow-auto pt-[88px] md:pt-0 md:px-8 md:py-8">
         {/* 데스크톱 헤더 */}
@@ -1613,10 +1634,11 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={refetch}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80"
+              disabled={refreshing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: "#3d47cf" }}
             >
-              ↻ 새로고침
+              {refreshing ? "⏳ 새로고침 중..." : "↻ 새로고침"}
             </button>
           </div>
         </div>
@@ -1742,6 +1764,41 @@ export default function DashboardPage() {
             />
           );
         })()}
+
+        {/* 전체 탭: 카테고리별 계좌 현황 */}
+        {activeTab === "전체" && summary && (
+          <div className="mx-4 md:mx-0 mb-6">
+            {summary.groups.map((group) => {
+              if (group.category === "암호화폐") return null;
+              if (group.accounts.length === 0 && group.cash <= 0) return null;
+              return (
+                <div key={group.category} className="mb-6">
+                  <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+                    {group.category} 계좌
+                  </h2>
+                  <AccountsOverview
+                    accounts={group.accounts}
+                    totalCash={group.cash}
+                    editable={false}
+                    cashOverrides={cashOverrides}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 전체 탭: 암호화폐 거래소 현황 */}
+        {activeTab === "전체" && cryptoData && cryptoData.exchanges.length > 0 && (
+          <div className="mx-4 md:mx-0 mb-6">
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 md:px-0 mb-3">
+              암호화폐 거래소
+            </h2>
+            {cryptoData.exchanges.map((exchange) => (
+              <ExchangeSection key={exchange.exchange} group={exchange} />
+            ))}
+          </div>
+        )}
 
         {/* 자산 목록 (암호화폐 탭 제외) */}
         {!isCryptoTab && <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] overflow-hidden mx-4 md:mx-0 mb-6">

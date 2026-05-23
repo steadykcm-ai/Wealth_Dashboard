@@ -7,6 +7,7 @@ interface UseAssetsResult {
   data: AssetsApiResponse | null;
   loading: boolean;
   error: string | null;
+  refreshing: boolean;
   refetch: () => void;
 }
 
@@ -14,6 +15,7 @@ export function useAssets(): UseAssetsResult {
   const [data, setData] = useState<AssetsApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = useCallback(async (bust = false) => {
     setLoading(true);
@@ -34,9 +36,26 @@ export function useAssets(): UseAssetsResult {
     }
   }, []);
 
+  const refetch = useCallback(async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const updateRes = await fetch("/api/cron/update-prices", { cache: "no-store" });
+      if (!updateRes.ok) {
+        const body = (await updateRes.json()) as { error?: string };
+        throw new Error(body.error ?? `가격 업데이트 실패 (HTTP ${updateRes.status})`);
+      }
+      await fetchData(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "새로고침 실패");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchData]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: () => fetchData(true) };
+  return { data, loading, error, refreshing, refetch };
 }

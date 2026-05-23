@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { fetchStockPrices } from "@/lib/price-fetcher";
 import type { AssetSummary } from "@/lib/types";
 
 export const revalidate = 0;
@@ -11,24 +10,36 @@ async function buildAssetSummaryFromSupabase(): Promise<AssetSummary> {
     .select("*")
     .eq("is_cash", false);
 
-  const { data: cashData } = await supabase.from("cash").select("amount");
+  const { data: cashData } = await supabase.from("cash").select("*");
 
   if (error) throw error;
 
-  const totalCash = (cashData || []).reduce((sum, record) => sum + (record.amount || 0), 0);
+  // 계좌별 현금 매핑 (괄호 무시)
+  const normalizeAccountName = (name: string) => name.replace(/\([^)]*\)/g, "").trim();
+
+  const cashByAccount: Record<string, number> = {};
+  let totalCash = 0;
+  (cashData || []).forEach((record: any) => {
+    const amount = record.amount || 0;
+    const accountName = normalizeAccountName(record.account_name || "");
+    totalCash += amount;
+    if (accountName) {
+      cashByAccount[accountName] = (cashByAccount[accountName] || 0) + amount;
+    }
+  });
 
   const codes = (assets || []).map((a) => a.code).filter((c) => c);
-  console.log("📊 [ASSETS] 코드 목록:", codes.slice(0, 3)); // 첫 3개만
-  const prices = await fetchStockPrices(codes);
-  console.log("💰 [ASSETS] 조회 가격:", Object.keys(prices).length, "개", Object.entries(prices).slice(0, 3));
 
-  // 디버그: 가격 조회 결과 확인
-  const pricesDebug = {
-    totalCodes: codes.length,
-    receivedPrices: Object.keys(prices).length,
-    samplePrices: Object.entries(prices).slice(0, 3).map(([k, v]) => `${k}:${v}`),
-  };
-  console.log("[ASSETS DEBUG]", pricesDebug);
+  const { data: pricesData } = await supabase
+    .from("prices")
+    .select("code, price");
+
+  const prices: Record<string, number> = {};
+  (pricesData || []).forEach((p) => {
+    if (p.code && typeof p.price === "number") {
+      prices[p.code] = p.price;
+    }
+  });
 
   // 자산유형별로 그룹화
   const groups: Record<string, any> = {};
@@ -76,14 +87,15 @@ async function buildAssetSummaryFromSupabase(): Promise<AssetSummary> {
     const accountMap: Record<string, any> = {};
 
     group.items.forEach((item: any) => {
-      const accountName = (assets || []).find((a) => a.name === item.name)?.account_name || "Unknown";
+      const rawAccountName = (assets || []).find((a) => a.name === item.name)?.account_name || "Unknown";
+      const accountName = normalizeAccountName(rawAccountName);
 
       if (!accountMap[accountName]) {
         accountMap[accountName] = {
           name: accountName,
           totalInvest: 0,
           totalValue: 0,
-          cash: 0,
+          cash: cashByAccount[accountName] || 0,
           totalProfitLoss: 0,
           returnRate: 0,
           items: [],
@@ -99,11 +111,15 @@ async function buildAssetSummaryFromSupabase(): Promise<AssetSummary> {
     group.accounts = Object.values(accountMap).map((acc: any) => ({
       ...acc,
       returnRate: acc.totalInvest > 0 ? (acc.totalProfitLoss / acc.totalInvest) * 100 : 0,
+      totalValue: acc.totalValue + acc.cash,
     }));
+
+    // 카테고리의 현금 합계 계산
+    group.cash = group.accounts.reduce((s: number, acc: any) => s + (acc.cash || 0), 0);
+    group.totalValue += group.cash;
 
     group.totalProfitLoss = group.totalValue - group.totalInvest;
     group.returnRate = group.totalInvest > 0 ? (group.totalProfitLoss / group.totalInvest) * 100 : 0;
-    group.totalValue += totalCash; // 현금 추가
   });
 
   const groupArray = Object.values(groups);
