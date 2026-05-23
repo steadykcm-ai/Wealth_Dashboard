@@ -51,7 +51,13 @@ async function getAccessToken(): Promise<string> {
 
 export async function fetchKISPrice(code: string): Promise<number | null> {
   try {
-    const token = await getAccessToken();
+    let token: string;
+    try {
+      token = await getAccessToken();
+    } catch (tokenErr) {
+      console.error(`[KIS ${code}] 토큰 발급 실패:`, tokenErr);
+      return null;
+    }
     const appKey = process.env.KIS_APP_KEY;
     const appSecret = process.env.KIS_APP_SECRET;
 
@@ -62,26 +68,32 @@ export async function fetchKISPrice(code: string): Promise<number | null> {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "Content-Type": "application/json",
-        "authorization": token,
         "appkey": appKey,
         "appsecret": appSecret,
+        "authorization": token,
         "tr-id": "FHKST01010100",
         "custtype": "P",
       },
     });
 
     if (!response.ok) {
+      const error = await response.text();
+      console.error(`[KIS ${code}] HTTP ${response.status}:`, error);
       return null;
     }
 
     const data = (await response.json()) as any;
+    console.log(`[KIS ${code}] 응답 데이터:`, JSON.stringify(data).substring(0, 200));
+
     const price = parseFloat(data.output?.stck_prpr);
+    console.log(`[KIS ${code}] 파싱된 가격:`, price, "isNaN:", isNaN(price));
 
     if (!isNaN(price) && price > 0) {
+      console.log(`[KIS ${code}] ✅ 성공: ${price}`);
       return price;
     }
 
+    console.warn(`[KIS ${code}] ❌ 가격 파싱 실패 - stck_prpr:`, data.output?.stck_prpr);
     return null;
   } catch (err: unknown) {
     return null;

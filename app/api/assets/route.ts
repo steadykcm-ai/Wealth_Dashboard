@@ -18,7 +18,17 @@ async function buildAssetSummaryFromSupabase(): Promise<AssetSummary> {
   const totalCash = (cashData || []).reduce((sum, record) => sum + (record.amount || 0), 0);
 
   const codes = (assets || []).map((a) => a.code).filter((c) => c);
+  console.log("📊 [ASSETS] 코드 목록:", codes.slice(0, 3)); // 첫 3개만
   const prices = await fetchStockPrices(codes);
+  console.log("💰 [ASSETS] 조회 가격:", Object.keys(prices).length, "개", Object.entries(prices).slice(0, 3));
+
+  // 디버그: 가격 조회 결과 확인
+  const pricesDebug = {
+    totalCodes: codes.length,
+    receivedPrices: Object.keys(prices).length,
+    samplePrices: Object.entries(prices).slice(0, 3).map(([k, v]) => `${k}:${v}`),
+  };
+  console.log("[ASSETS DEBUG]", pricesDebug);
 
   // 자산유형별로 그룹화
   const groups: Record<string, any> = {};
