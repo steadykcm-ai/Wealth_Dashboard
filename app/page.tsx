@@ -32,7 +32,7 @@ function rateColor(rate: number): string {
 const CATEGORY_COLORS: Record<AssetCategory, string> = {
   개별주식: "#3d47cf",
   개인연금: "#26a69a",
-  IRP: "#ff7043",
+  IRP: "#4db8a8",
   암호화폐: "#ab47bc",
 };
 
@@ -40,7 +40,6 @@ const TABS = [
   { id: "전체", label: "전체" },
   { id: "개별주식", label: "주식" },
   { id: "개인연금", label: "연금" },
-  { id: "IRP", label: "IRP" },
   { id: "암호화폐", label: "코인" },
 ];
 
@@ -229,7 +228,6 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
     total: log.total.total,
     stocks: log.stocks.total,
     pension: log.pension.total,
-    irp: log.blockchain.total,
     crypto: log.crypto.total,
     fullDate: log.date,
   }));
@@ -581,7 +579,6 @@ function Sidebar({
     { id: "전체", label: "전체 자산" },
     { id: "개별주식", label: "개별주식" },
     { id: "개인연금", label: "개인연금" },
-    { id: "IRP", label: "IRP" },
     { id: "암호화폐", label: "암호화폐" },
   ];
   return (
@@ -781,7 +778,7 @@ function AssetRow({
   onSave?: (field: "quantity" | "avgPrice", value: number) => Promise<void>;
   onDelete?: () => Promise<void>;
 }) {
-  const canEdit = editable && !!item.rowIndex && !!item.sheetTab && !!onSave;
+  const canEdit = editable && !!item.id && !!onSave;
   return (
     <tr className="border-b border-[#f0f0f0] dark:border-[#2a3a4a] hover:bg-[#f8f9fc] dark:hover:bg-[#1e2c3a] transition-colors">
       <td className="py-3 px-4">
@@ -992,11 +989,13 @@ function PortfolioOverview({
 function AddItemModal({
   account,
   sheetTab,
+  assetCategory,
   onClose,
   onAdded,
 }: {
   account: AccountGroup;
   sheetTab: string;
+  assetCategory: AssetCategory;
   onClose: () => void;
   onAdded: () => void;
 }) {
@@ -1046,6 +1045,8 @@ function AddItemModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          assetType: assetCategory,
+          accountName: account.name,
           sheetTab,
           afterRowIndex: account.insertRowIndex,
           name: name.trim(),
@@ -1057,6 +1058,10 @@ function AddItemModal({
       const data = await res.json() as { ok?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error ?? "추가 실패");
       onAdded();
+      setName("");
+      setCode("");
+      setQuantity("");
+      setAvgPrice("");
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "추가 오류");
@@ -1130,6 +1135,8 @@ function AddItemModal({
             <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">수량</label>
               <input
+                type="number"
+                step="0.0001"
                 className="w-full rounded-lg border border-[#e0e0e0] dark:border-[#2a3a4a] bg-[#f8f9fc] dark:bg-[#0f1923] px-3 py-2 text-sm outline-none focus:border-[#3d47cf]"
                 placeholder="100"
                 value={quantity}
@@ -1139,6 +1146,8 @@ function AddItemModal({
             <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">평균 매입가</label>
               <input
+                type="number"
+                step="0.01"
                 className="w-full rounded-lg border border-[#e0e0e0] dark:border-[#2a3a4a] bg-[#f8f9fc] dark:bg-[#0f1923] px-3 py-2 text-sm outline-none focus:border-[#3d47cf]"
                 placeholder="75000"
                 value={avgPrice}
@@ -1334,13 +1343,13 @@ export default function DashboardPage() {
     const res = await fetch("/api/assets/item", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sheetTab: item.sheetTab, rowIndex: item.rowIndex, field, value }),
+      body: JSON.stringify({ id: item.id, field, value }),
     });
     if (!res.ok) {
       const body = await res.json() as { error?: string };
       throw new Error(body.error ?? "저장 실패");
     }
-    const key = `${item.sheetTab ?? ""}-${item.rowIndex ?? ""}`;
+    const key = `${item.id ?? ""}`;
     setItemOverrides((prev) => ({ ...prev, [key]: { ...(prev[key] ?? {}), [field]: value } }));
   }
 
@@ -1446,14 +1455,15 @@ export default function DashboardPage() {
     const res = await fetch("/api/assets/item", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sheetTab: item.sheetTab, rowIndex: item.rowIndex }),
+      body: JSON.stringify({ id: item.id }),
     });
     if (!res.ok) {
       const body = await res.json() as { error?: string };
       throw new Error(body.error ?? "삭제 실패");
     }
-    const key = `${item.sheetTab ?? ""}-${item.rowIndex ?? ""}`;
-    setDeletedKeys((prev) => { const next = new Set(prev); next.add(key); return next; });
+    setItemOverrides({});
+    setDeletedKeys(new Set());
+    refetch();
   }
 
   const summary = data?.summary;
@@ -1961,6 +1971,7 @@ export default function DashboardPage() {
         <AddItemModal
           account={addModalAccount}
           sheetTab={SHEET_TABS[activeTab as AssetCategory]}
+          assetCategory={activeTab as AssetCategory}
           onClose={() => setAddModalAccount(null)}
           onAdded={handleItemAdded}
         />

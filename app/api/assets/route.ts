@@ -1,35 +1,124 @@
 import { NextResponse } from "next/server";
-import { batchGetSheetValues } from "@/lib/sheets";
-import { getAssetRanges, getPortfolioRange } from "@/lib/sheetConfig";
-import { buildAssetSummary, parsePortfolioBreakdown, parseSectorMap } from "@/lib/profit-calculator";
-import type { AssetCategory } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
+import { fetchStockPrices } from "@/lib/price-fetcher";
+import type { AssetSummary } from "@/lib/types";
 
-export const revalidate = 300;
+export const revalidate = 0;
+
+async function buildAssetSummaryFromSupabase(): Promise<AssetSummary> {
+  const { data: assets, error } = await supabase
+    .from("assets")
+    .select("*")
+    .eq("is_cash", false);
+
+  const { data: cashData } = await supabase.from("cash").select("amount");
+
+  if (error) throw error;
+
+  const totalCash = (cashData || []).reduce((sum, record) => sum + (record.amount || 0), 0);
+
+  const codes = (assets || []).map((a) => a.code).filter((c) => c);
+  console.log("[DEBUG] Assets count:", assets?.length, "Codes extracted:", codes);
+  const prices = await fetchStockPrices(codes);
+  console.log("[DEBUG] Prices result:", prices);
+
+  // 자산유형별로 그룹화
+  const groups: Record<string, any> = {};
+
+  (assets || []).forEach((asset) => {
+    let category = asset.asset_type;
+    if (category === "IRP") category = "개인연금";
+
+    if (!groups[category]) {
+      groups[category] = {
+        category,
+        items: [],
+        totalInvest: 0,
+        totalValue: 0,
+        cash: 0,
+        totalProfitLoss: 0,
+        returnRate: 0,
+        accounts: [],
+      };
+    }
+
+    const currentPrice = prices[asset.code] ?? asset.avg_price;
+    const investAmount = asset.quantity * asset.avg_price;
+    const currentValue = asset.quantity * currentPrice;
+    const profitLoss = currentValue - investAmount;
+
+    groups[category].items.push({
+      id: asset.id,
+      name: asset.name,
+      quantity: asset.quantity,
+      avgPrice: asset.avg_price,
+      currentPrice,
+      investAmount,
+      currentValue,
+      profitLoss,
+      returnRate: investAmount > 0 ? (profitLoss / investAmount) * 100 : 0,
+    });
+
+    groups[category].totalInvest += investAmount;
+    groups[category].totalValue += currentValue;
+  });
+
+  // 계좌별로 그룹화
+  Object.values(groups).forEach((group: any) => {
+    const accountMap: Record<string, any> = {};
+
+    group.items.forEach((item: any) => {
+      const accountName = (assets || []).find((a) => a.name === item.name)?.account_name || "Unknown";
+
+      if (!accountMap[accountName]) {
+        accountMap[accountName] = {
+          name: accountName,
+          totalInvest: 0,
+          totalValue: 0,
+          cash: 0,
+          totalProfitLoss: 0,
+          returnRate: 0,
+          items: [],
+        };
+      }
+
+      accountMap[accountName].items.push(item);
+      accountMap[accountName].totalInvest += item.investAmount;
+      accountMap[accountName].totalValue += item.currentValue;
+      accountMap[accountName].totalProfitLoss += item.profitLoss;
+    });
+
+    group.accounts = Object.values(accountMap).map((acc: any) => ({
+      ...acc,
+      returnRate: acc.totalInvest > 0 ? (acc.totalProfitLoss / acc.totalInvest) * 100 : 0,
+    }));
+
+    group.totalProfitLoss = group.totalValue - group.totalInvest;
+    group.returnRate = group.totalInvest > 0 ? (group.totalProfitLoss / group.totalInvest) * 100 : 0;
+    group.totalValue += totalCash; // 현금 추가
+  });
+
+  const groupArray = Object.values(groups);
+  const totalInvest = groupArray.reduce((sum, g: any) => sum + g.totalInvest, 0);
+  const totalValue = groupArray.reduce((sum, g: any) => sum + g.totalValue, 0) + totalCash;
+  const totalProfitLoss = totalValue - totalInvest;
+
+  return {
+    totalInvest,
+    totalValue,
+    totalProfitLoss,
+    returnRate: totalInvest > 0 ? (totalProfitLoss / totalInvest) * 100 : 0,
+    groups: groupArray,
+  };
+}
 
 export async function GET() {
   try {
-    const assetRanges = getAssetRanges();
-    const portfolioRange = getPortfolioRange();
-    const allRanges = [...assetRanges, portfolioRange];
-
-    const rawData = await batchGetSheetValues(allRanges);
-
-    const assetsRows = rawData[0] ?? [];
-    const cryptoRows = rawData[1] ?? [];
-    const logTotalRows = rawData[2] ?? [];
-
-    const breakdown = parsePortfolioBreakdown(logTotalRows);
-    const sectorMap = parseSectorMap(logTotalRows);
-
-    // Assets 시트 파싱 (개별주식, 개인연금, IRP)
-    const summary = buildAssetSummary(assetsRows, sectorMap);
-
-    // BlockChain 암호화폐 데이터는 별도의 API (/api/crypto)에서 처리
-    // 여기서는 구조 호환성만 유지
+    const summary = await buildAssetSummaryFromSupabase();
 
     const response = {
       summary,
-      breakdown,
+      breakdown: { region: [], assetType: [] },
       updatedAt: new Date().toISOString(),
     };
 

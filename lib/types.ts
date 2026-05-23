@@ -1,5 +1,6 @@
 // 자산 항목 (주식, 연금, IRP, 암호화폐 공통)
 export interface AssetItem {
+  id?: number;        // DB id (Supabase)
   name: string;       // 종목명
   quantity: number;   // 수량
   avgPrice: number;   // 평균매입가
@@ -123,4 +124,15 @@ export interface DailyLogItem {
   pension: CategorySnapshot;
   blockchain: CategorySnapshot;
   crypto: CategorySnapshot;
+}
+
+// Supabase 암호화폐 자산 행
+export interface CryptoAssetRow {
+  id: number;
+  ticker: string;
+  name: string;
+  quantity: number;
+  avg_price: number;
+  exchange: string;
+  is_cash: boolean;
 }

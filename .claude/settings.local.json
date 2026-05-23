@@ -39,7 +39,18 @@
       "Bash(rm -rf .next node_modules/.cache)",
       "PowerShell(Stop-Process *)",
       "Bash(vercel *)",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(Test-Path *)",
+      "Bash(export GOOGLE_APPLICATION_CREDENTIALS=\"C:\\\\tmp\\\\finance-dashboard-keys.json\")",
+      "Bash(export GOOGLE_SPREADSHEET_ID=\"1MdNxFQq6bBrvfm_5p6DGHYmuqQ4bsSQhgRMLsMdQcFI\")",
+      "Bash(npm i *)",
+      "Bash(npx ts-node *)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(ConvertFrom-Json)",
+      "Bash(ConvertTo-Json)",
+      "PowerShell(Get-Process *)",
+      "Bash(start *)",
+      "Bash(findstr /N \"showAddModal\\\\|AddItemModal\" \"C:\\\\tmp\\\\Wealth_dashboard\\\\app\\\\page.tsx\")"
     ]
   }
 }
