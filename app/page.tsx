@@ -652,20 +652,11 @@ function MobileHeader({
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
           <button
-            onClick={onUpdateCrypto}
-            disabled={updatingCrypto}
-            className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-            style={{ background: "#ab47bc" }}
-            title="암호화폐 데이터 업데이트"
-          >
-            {updatingCrypto ? "⏳" : "💰"}
-          </button>
-          <button
             onClick={onRefetch}
             disabled={refreshing}
             className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
             style={{ background: "#3d47cf" }}
-            title="주식 가격 새로고침"
+            title="가격 새로고침"
           >
             {refreshing ? "⏳" : "↻"}
           </button>
@@ -1355,6 +1346,8 @@ export default function DashboardPage() {
     }
     const key = `${item.id ?? ""}`;
     setItemOverrides((prev) => ({ ...prev, [key]: { ...(prev[key] ?? {}), [field]: value } }));
+    // 대시보드 데이터 갱신
+    await refetch();
   }
 
   async function saveCash(account: AccountGroup, value: number) {
@@ -1370,6 +1363,8 @@ export default function DashboardPage() {
     }
     const key = `${account.sheetTab ?? ""}-${account.cashRowIndex ?? ""}`;
     setCashOverrides((prev) => ({ ...prev, [key]: value }));
+    // 대시보드 데이터 갱신
+    await refetch();
   }
 
   function handleItemAdded() {
@@ -1622,25 +1617,14 @@ export default function DashboardPage() {
         {/* 데스크톱 헤더 */}
         <div className="hidden md:flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={updateCryptoLogTotal}
-              disabled={updatingCrypto}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: "#ab47bc" }}
-              title="암호화폐 데이터 업데이트"
-            >
-              {updatingCrypto ? "⏳ 업데이트 중..." : "💰 암호화폐 업데이트"}
-            </button>
-            <button
-              onClick={refetch}
-              disabled={refreshing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: "#3d47cf" }}
-            >
-              {refreshing ? "⏳ 새로고침 중..." : "↻ 새로고침"}
-            </button>
-          </div>
+          <button
+            onClick={refetch}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "#3d47cf" }}
+          >
+            {refreshing ? "⏳ 새로고침 중..." : "↻ 새로고침"}
+          </button>
         </div>
 
         {/* 모바일 타이틀 */}
