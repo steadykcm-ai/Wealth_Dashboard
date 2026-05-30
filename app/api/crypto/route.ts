@@ -71,7 +71,7 @@ export async function GET() {
     const timeoutPromise = (ms: number) =>
       new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms));
 
-    const [bithumbData, upbitData] = await Promise.all([
+    const [bithumbData, upbitData] = (await Promise.all([
       Promise.race([fetchBithumbData(), timeoutPromise(3000)]).catch(() => ({
         holdings: [],
         krwBalance: 0,
@@ -80,7 +80,7 @@ export async function GET() {
         holdings: [],
         krwBalance: 0,
       })),
-    ]);
+    ])) as Array<{ holdings: { currency: string; balance: number; avgPrice: number }[]; krwBalance: number }>;
 
     // 모든 티커 수집해서 현재가 한번에 조회
     const allTickers = [

@@ -1655,6 +1655,11 @@ export default function DashboardPage() {
 
   const title = activeTab === "전체" ? "전체 자산 현황" : activeTab;
 
+  // 전체자산 탭용 필터링된 그룹 (개별주식, 암호화폐 제외)
+  const filteredGroupsForOverview = adjustedGroups.filter(
+    (g) => g.category !== "개별주식" && g.category !== "암호화폐"
+  );
+
   return (
     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
@@ -1727,7 +1732,7 @@ export default function DashboardPage() {
         {activeTab === "전체" && (
           <>
             <PortfolioOverview
-              groups={adjustedGroups}
+              groups={filteredGroupsForOverview}
               breakdown={data?.breakdown ?? null}
               loading={loading}
               onTabChange={setActiveTab}
@@ -1812,7 +1817,7 @@ export default function DashboardPage() {
         {activeTab === "전체" && summary && (
           <div className="mx-4 md:mx-0 mb-6">
             {summary.groups.map((group) => {
-              if (group.category === "암호화폐") return null;
+              if (group.category === "개별주식" || group.category === "암호화폐") return null;
               if (group.accounts.length === 0 && group.cash <= 0) return null;
               return (
                 <div key={group.category} className="mb-6">
@@ -1831,8 +1836,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 전체 탭: 암호화폐 거래소 현황 */}
-        {activeTab === "전체" && cryptoData && cryptoData.exchanges.length > 0 && (
+        {/* 암호화폐 탭만: 암호화폐 거래소 현황 */}
+        {isCryptoTab && cryptoData && cryptoData.exchanges.length > 0 && (
           <div className="mx-4 md:mx-0 mb-6">
             <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 md:px-0 mb-3">
               암호화폐 거래소
