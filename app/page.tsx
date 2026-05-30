@@ -1030,12 +1030,14 @@ function PortfolioOverview({
 // ── 종목 추가 모달 ────────────────────────────────────────
 function AddItemModal({
   account,
+  allAccounts,
   sheetTab,
   assetCategory,
   onClose,
   onAdded,
 }: {
-  account: AccountGroup;
+  account: AccountGroup | null;
+  allAccounts: AccountGroup[];
   sheetTab: string;
   assetCategory: AssetCategory;
   onClose: () => void;
@@ -1049,6 +1051,8 @@ function AddItemModal({
   const [loadingStocks, setLoadingStocks] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accountName, setAccountName] = useState(account?.name ?? "");
+  const [showNewAccountInput, setShowNewAccountInput] = useState(!account);
   const isComposing = useRef(false);
 
   async function handleNameChange(value: string) {
@@ -1080,6 +1084,10 @@ function AddItemModal({
       setError("종목명, 수량, 매입가를 올바르게 입력해주세요");
       return;
     }
+    if (!accountName.trim()) {
+      setError("계좌명을 입력해주세요");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -1088,9 +1096,9 @@ function AddItemModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           assetType: assetCategory,
-          accountName: account.name,
+          accountName: accountName.trim(),
           sheetTab,
-          afterRowIndex: account.insertRowIndex,
+          afterRowIndex: account?.insertRowIndex ?? 0,
           name: name.trim(),
           code: code.trim(),
           quantity: qty,
@@ -1104,6 +1112,7 @@ function AddItemModal({
       setCode("");
       setQuantity("");
       setAvgPrice("");
+      setAccountName("");
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "추가 오류");
@@ -1121,12 +1130,58 @@ function AddItemModal({
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-base font-bold text-gray-900 dark:text-white">종목 추가</h2>
-            <p className="text-xs text-gray-400 mt-0.5">{account.name}</p>
+            {account && <p className="text-xs text-gray-400 mt-0.5">{account.name}</p>}
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          {/* 계좌 선택/입력 (기존 계좌 없을 때) */}
+          {!account && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">계좌명</label>
+              {allAccounts.length > 0 && !showNewAccountInput && (
+                <>
+                  <select
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    className="w-full rounded-lg border border-[#e0e0e0] dark:border-[#2a3a4a] bg-[#f8f9fc] dark:bg-[#0f1923] px-3 py-2 text-sm outline-none focus:border-[#3d47cf] mb-2"
+                  >
+                    <option value="">— 계좌 선택 —</option>
+                    {allAccounts.map((acc) => (
+                      <option key={acc.name} value={acc.name}>{acc.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => { setShowNewAccountInput(true); setAccountName(""); }}
+                    className="text-xs text-[#3d47cf] hover:underline"
+                  >
+                    + 새로운 계좌 추가
+                  </button>
+                </>
+              )}
+              {(allAccounts.length === 0 || showNewAccountInput) && (
+                <>
+                  <input
+                    className="w-full rounded-lg border border-[#e0e0e0] dark:border-[#2a3a4a] bg-[#f8f9fc] dark:bg-[#0f1923] px-3 py-2 text-sm outline-none focus:border-[#3d47cf]"
+                    placeholder="예: NH_CMA(7187)"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                  />
+                  {showNewAccountInput && allAccounts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { setShowNewAccountInput(false); setAccountName(""); }}
+                      className="text-xs text-gray-400 hover:underline mt-1"
+                    >
+                      ← 기존 계좌 선택
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           {/* 종목명 */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">
@@ -1232,12 +1287,14 @@ function AccountsOverview({
   editable,
   cashOverrides,
   onCashSave,
+  onAddAccount,
 }: {
   accounts: AccountGroup[];
   totalCash: number;
   editable?: boolean;
   cashOverrides?: Record<string, number>;
   onCashSave?: (account: AccountGroup, value: number) => Promise<void>;
+  onAddAccount?: () => void;
 }) {
   if (accounts.length === 0 && totalCash <= 0) return null;
 
@@ -1248,12 +1305,24 @@ function AccountsOverview({
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
             계좌별 현황
           </h3>
-          {totalCash > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-400">전체 현금</span>
-              <span className="text-sm font-bold text-gray-800 dark:text-white">{formatKRW(totalCash)}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {editable && onAddAccount && (
+              <button
+                onClick={onAddAccount}
+                className="text-xs font-semibold text-white px-2 py-1 rounded-full"
+                style={{ background: "#3d47cf" }}
+                title="새로운 계좌 추가"
+              >
+                + 계좌
+              </button>
+            )}
+            {totalCash > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-400">전체 현금</span>
+                <span className="text-sm font-bold text-gray-800 dark:text-white">{formatKRW(totalCash)}</span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {accounts.map((acct) => {
@@ -1356,7 +1425,7 @@ export default function DashboardPage() {
   const [itemOverrides, setItemOverrides] = useState<Record<string, Partial<AssetItem>>>({});
   const [cashOverrides, setCashOverrides] = useState<Record<string, number>>({});
   const [deletedKeys, setDeletedKeys] = useState<Set<string>>(new Set());
-  const [addModalAccount, setAddModalAccount] = useState<AccountGroup | null>(null);
+  const [addModalAccount, setAddModalAccount] = useState<AccountGroup | "new" | null>(null);
   const [profitLogs, setProfitLogs] = useState<DailyLogItem[]>([]);
   const [savingProfit, setSavingProfit] = useState(false);
   const [updatingCrypto, setUpdatingCrypto] = useState(false);
@@ -1805,6 +1874,7 @@ export default function DashboardPage() {
               editable={isEditable}
               cashOverrides={cashOverrides}
               onCashSave={saveCash}
+              onAddAccount={() => setAddModalAccount("new")}
             />
           );
         })()}
@@ -1825,6 +1895,7 @@ export default function DashboardPage() {
                     totalCash={group.cash}
                     editable={false}
                     cashOverrides={cashOverrides}
+                    onAddAccount={undefined}
                   />
                 </div>
               );
@@ -2068,15 +2139,21 @@ export default function DashboardPage() {
       </main>
 
       {/* 종목 추가 모달 */}
-      {addModalAccount && isEditable && (
-        <AddItemModal
-          account={addModalAccount}
-          sheetTab={SHEET_TABS[activeTab as AssetCategory]}
-          assetCategory={activeTab as AssetCategory}
-          onClose={() => setAddModalAccount(null)}
-          onAdded={handleItemAdded}
-        />
-      )}
+      {addModalAccount !== null && isEditable && (() => {
+        const group = summary?.groups.find((g) => g.category === (activeTab as AssetCategory));
+        const allAccounts = group?.accounts ?? [];
+        const account = addModalAccount === "new" ? null : addModalAccount;
+        return (
+          <AddItemModal
+            account={account}
+            allAccounts={allAccounts}
+            sheetTab={SHEET_TABS[activeTab as AssetCategory]}
+            assetCategory={activeTab as AssetCategory}
+            onClose={() => setAddModalAccount(null)}
+            onAdded={handleItemAdded}
+          />
+        );
+      })()}
     </div>
   );
 }

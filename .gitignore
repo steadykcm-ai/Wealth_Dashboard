@@ -44,3 +44,5 @@ scripts/run-sql-migration.js
 .playwright-mcp/
 
 .vercel
+
+.env*
