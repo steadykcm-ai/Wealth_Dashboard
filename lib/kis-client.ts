@@ -51,13 +51,6 @@ async function getAccessToken(): Promise<string> {
 
 export async function fetchKISPrice(code: string): Promise<number | null> {
   try {
-    let token: string;
-    try {
-      token = await getAccessToken();
-    } catch (tokenErr) {
-      console.error(`[KIS ${code}] 토큰 발급 실패:`, tokenErr);
-      return null;
-    }
     const appKey = process.env.KIS_APP_KEY;
     const appSecret = process.env.KIS_APP_SECRET;
 
@@ -70,7 +63,6 @@ export async function fetchKISPrice(code: string): Promise<number | null> {
       headers: {
         "appkey": appKey,
         "appsecret": appSecret,
-        "authorization": token,
         "tr-id": "FHKST01010100",
         "custtype": "P",
       },

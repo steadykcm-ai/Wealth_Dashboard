@@ -16,61 +16,7 @@ Google Sheets에 Apps Script를 추가하여 **매일 아침 8시**에 자산 �
 
 기존 코드를 모두 삭제하고 아래 코드를 붙여넣기합니다:
 
-```javascript
-var SPREADSHEET_ID = "1MdNxFQq6bBrvfm_5p6DGHYmuqQ4bsSQhgRMLsMdQcFI";
-var LOG_TOTAL_TAB = "LOG_TOTAL";
-var LOG_DAILY_TAB = "Log_daily";
-
-function saveToLogDaily() {
-  try {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    var logTotalTab = sheet.getSheetByName(LOG_TOTAL_TAB);
-    var logSheet = sheet.getSheetByName(LOG_DAILY_TAB);
-    
-    if (!logTotalTab || !logSheet) {
-      Logger.log("Error: LOG_TOTAL or Log_daily tab not found");
-      return;
-    }
-    
-    var total = logTotalTab.getRange("D4:H4").getValues()[0];
-    var stocks = logTotalTab.getRange("D5:H5").getValues()[0];
-    var pension = logTotalTab.getRange("D6:H6").getValues()[0];
-    var irp = logTotalTab.getRange("D7:H7").getValues()[0];
-    var crypto = logTotalTab.getRange("D8:H8").getValues()[0];
-    
-    var today = new Date().toISOString().split('T')[0];
-    
-    var rowData = [today].concat(total).concat(stocks).concat(pension).concat(irp).concat(crypto);
-    
-    var values = logSheet.getRange("A:A").getValues();
-    var existingRow = -1;
-    for (var i = 2; i < values.length; i++) {
-      var cellValue = values[i][0];
-      if (cellValue && String(cellValue).substring(0, 10) === today) {
-        existingRow = i + 1;
-        break;
-      }
-    }
-    
-    if (existingRow > 0) {
-      logSheet.getRange(existingRow, 1, 1, rowData.length).setValues([rowData]);
-      Logger.log("Updated row " + existingRow);
-    } else {
-      logSheet.appendRow(rowData);
-      Logger.log("Added new row");
-    }
-    
-  } catch (error) {
-    Logger.log("Error: " + error.toString());
-  }
-}
-
-function onSchedule() {
-  saveToLogDaily();
-}
-```
-
----
+1
 
 ## 3단계: 프로젝트 저장
 

@@ -12,6 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
     "@google/generative-ai": "^0.24.1",
+    "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "dotenv": "^17.4.2",
     "googleapis": "^144.0.0",

@@ -1,27 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase-browser";
 
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supabase, setSupabase] = useState<any>(null);
+
+  useEffect(() => {
+    // 클라이언트 사이드에서만 Supabase 초기화
+    async function initSupabase() {
+      try {
+        const { supabase: sb } = await import("@/lib/supabase-browser");
+        setSupabase(sb);
+      } catch (err) {
+        console.error("Supabase 초기화 실패:", err);
+        setError("로그인 시스템 초기화 실패");
+      }
+    }
+    initSupabase();
+  }, []);
 
   async function handleGoogleSignIn() {
+    if (!supabase) {
+      setError("로그인 시스템이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const { error: signInError } = await supabase.auth.signInWithOAuth({
+      console.log("Google OAuth 시작...");
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
 
+      console.log("OAuth 응답:", { data, signInError });
       if (signInError) throw signInError;
     } catch (err: unknown) {
+      console.error("로그인 에러:", err);
       const message = err instanceof Error ? err.message : "로그인 실패";
       setError(message);
       setLoading(false);

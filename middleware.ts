@@ -43,9 +43,19 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  let session = null;
+  try {
+    // 세션 확인 (3초 타임아웃)
+    const sessionPromise = supabase.auth.getSession();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Session check timeout")), 3000)
+    );
+    const { data } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+    session = data?.session;
+  } catch (err) {
+    // 세션 확인 실패 시 로그인 페이지로 리다이렉트
+    console.error("Session check error:", err);
+  }
 
   // 세션 없으면 로그인 페이지로 리다이렉트
   if (!session) {

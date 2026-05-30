@@ -53,6 +53,19 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Jake만 암호화폐 데이터 조회 가능 (다른 사용자는 빈 응답)
+    const OWNER_USER_ID = "56701cc8-3dff-405d-a2b7-1ff4301e92cc";
+    if (session.user.id !== OWNER_USER_ID) {
+      return NextResponse.json({
+        exchanges: [],
+        totalInvest: 0,
+        totalValue: 0,
+        totalProfitLoss: 0,
+        returnRate: 0,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
     // 모든 거래소 데이터 병렬 조회
     const [bithumbData, upbitData] = await Promise.all([
       fetchBithumbData().catch(() => ({ holdings: [], krwBalance: 0 })),
