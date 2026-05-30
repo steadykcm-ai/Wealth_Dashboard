@@ -5,13 +5,17 @@ import type { AssetSummary } from "@/lib/types";
 
 export const revalidate = 0;
 
-async function buildAssetSummaryFromSupabase(): Promise<AssetSummary> {
+async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSummary> {
   const { data: assets, error } = await supabase
     .from("assets")
     .select("*")
-    .eq("is_cash", false);
+    .eq("is_cash", false)
+    .eq("user_id", userId);
 
-  const { data: cashData } = await supabase.from("cash").select("*");
+  const { data: cashData } = await supabase
+    .from("cash")
+    .select("*")
+    .eq("user_id", userId);
 
   if (error) throw error;
 
@@ -145,7 +149,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const summary = await buildAssetSummaryFromSupabase();
+    const summary = await buildAssetSummaryFromSupabase(session.user.id);
 
     const response = {
       summary,

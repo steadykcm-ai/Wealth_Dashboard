@@ -15,6 +15,7 @@ export async function GET() {
     const { data: dailyLogs, error } = await supabase
       .from("daily_log")
       .select("*")
+      .eq("user_id", session.user.id)
       .order("date", { ascending: false })
       .limit(365);
 

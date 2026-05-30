@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
         quantity,
         avg_price: avgPrice,
         is_cash: false,
+        user_id: session.user.id,
       },
     ]).select();
 
@@ -89,7 +90,8 @@ export async function PATCH(req: NextRequest) {
     const { error } = await supabase
       .from("assets")
       .update(updateData)
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", session.user.id);
 
     if (error) throw error;
 
@@ -115,7 +117,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID 누락" }, { status: 400 });
     }
 
-    const { error } = await supabase.from("assets").delete().eq("id", id);
+    const { error } = await supabase
+      .from("assets")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", session.user.id);
 
     if (error) throw error;
 
