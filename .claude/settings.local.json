@@ -77,7 +77,8 @@
       "Bash(mkdir -p supabase/migrations)",
       "Bash(supabase init *)",
       "Bash(lsof -ti:3003)",
-      "PowerShell(Get-NetTCPConnection *)"
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
     ]
   }
 }

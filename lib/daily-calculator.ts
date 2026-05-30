@@ -25,13 +25,15 @@ interface DailyLogData {
 
 async function calculateCategory(
   assetType: string,
-  prices: Record<string, number>
+  prices: Record<string, number>,
+  userId: string
 ): Promise<CategorySummary> {
   const { data: assets, error } = await supabase
     .from("assets")
     .select("*")
     .eq("asset_type", assetType)
-    .eq("is_cash", false);
+    .eq("is_cash", false)
+    .eq("user_id", userId);
 
   if (error || !assets) {
     return { invest: 0, value: 0, profit: 0 };
@@ -56,21 +58,23 @@ async function calculateCategory(
   };
 }
 
-async function calculateCash(): Promise<number> {
+async function calculateCash(userId: string): Promise<number> {
   const { data: cashRecords, error } = await supabase
     .from("cash")
-    .select("amount");
+    .select("amount")
+    .eq("user_id", userId);
 
   if (error || !cashRecords) return 0;
 
   return cashRecords.reduce((sum, record) => sum + (record.amount || 0), 0);
 }
 
-async function calculateCrypto(prices: Record<string, number>): Promise<CategorySummary> {
+async function calculateCrypto(prices: Record<string, number>, userId: string): Promise<CategorySummary> {
   const { data: cryptoAssets, error } = await supabase
     .from("crypto_assets")
     .select("*")
-    .eq("is_cash", false);
+    .eq("is_cash", false)
+    .eq("user_id", userId);
 
   if (error || !cryptoAssets) {
     return { invest: 0, value: 0, profit: 0 };
@@ -95,7 +99,7 @@ async function calculateCrypto(prices: Record<string, number>): Promise<Category
   };
 }
 
-export async function calculateDailyLog(): Promise<DailyLogData> {
+export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
   // 현재가 조회
   const upbitPrices = await fetchUpbitPrices(["BTC", "ETH"]).catch(() => ({}));
   const bithumbData = await fetchBithumbData().catch(() => ({ holdings: [] }));
@@ -109,10 +113,10 @@ export async function calculateDailyLog(): Promise<DailyLogData> {
   });
 
   // 카테고리별 계산
-  const stocks = await calculateCategory("개별주식", {});
-  const pension = await calculateCategory("개인연금", {});
-  const crypto = await calculateCrypto(cryptoPrices);
-  const totalCash = await calculateCash();
+  const stocks = await calculateCategory("개별주식", {}, userId);
+  const pension = await calculateCategory("개인연금", {}, userId);
+  const crypto = await calculateCrypto(cryptoPrices, userId);
+  const totalCash = await calculateCash(userId);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -131,13 +135,13 @@ export async function calculateDailyLog(): Promise<DailyLogData> {
   };
 }
 
-export async function saveDailyLog(): Promise<boolean> {
+export async function saveDailyLog(userId: string): Promise<boolean> {
   try {
-    const dailyData = await calculateDailyLog();
+    const dailyData = await calculateDailyLog(userId);
 
     const { error } = await supabase
       .from("daily_log")
-      .upsert([dailyData], { onConflict: "date" });
+      .upsert([{ ...dailyData, user_id: userId }], { onConflict: "date,user_id" });
 
     if (error) {
       console.error("Daily log 저장 실패:", error.message);

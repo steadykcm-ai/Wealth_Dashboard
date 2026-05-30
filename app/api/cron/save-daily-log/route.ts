@@ -1,17 +1,17 @@
-import { calculateDailyLog, saveDailyLog } from "@/lib/daily-calculator";
+import { saveDailyLog } from "@/lib/daily-calculator";
 
 export async function GET() {
   try {
     console.log("🕐 Daily log 저장 시작...");
 
-    const dailyData = await calculateDailyLog();
-    console.log("📊 계산된 데이터:", dailyData);
+    // Jake의 user_id로 고정
+    const OWNER_USER_ID = "56701cc8-3dff-405d-a2b7-1ff4301e92cc";
 
-    const success = await saveDailyLog();
+    const success = await saveDailyLog(OWNER_USER_ID);
 
     if (success) {
       console.log("✅ Daily log 저장 성공");
-      return Response.json({ message: "Daily log 저장 완료", data: dailyData }, { status: 200 });
+      return Response.json({ message: "Daily log 저장 완료" }, { status: 200 });
     } else {
       console.log("❌ Daily log 저장 실패");
       return Response.json({ error: "Daily log 저장 실패" }, { status: 500 });
