@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useRouter } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useAssets } from "@/lib/useAssets";
