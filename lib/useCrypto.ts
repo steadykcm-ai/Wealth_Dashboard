@@ -16,21 +16,46 @@ export function useCrypto(): UseCryptoResult {
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
     setError(null);
+
+    // 1. 캐시된 데이터 먼저 로드 (이전 데이터)
+    try {
+      const cached = sessionStorage.getItem("crypto-cache");
+      if (cached) {
+        const cachedData = JSON.parse(cached) as CryptoApiResponse;
+        setData(cachedData);
+        setLoading(false);  // 캐시가 있으면 로딩 상태 해제
+      }
+    } catch (e) {
+      // 캐시 파싱 실패 무시
+    }
+
+    // 2. 새로운 데이터를 백그라운드에서 로드
     try {
       const res = await fetch("/api/crypto");
       if (!res.ok) {
         const body = (await res.json()) as { error?: string };
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
-      setData((await res.json()) as CryptoApiResponse);
+      const newData = (await res.json()) as CryptoApiResponse;
+      setData(newData);
+
+      // 캐시 저장
+      sessionStorage.setItem("crypto-cache", JSON.stringify(newData));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "알 수 없는 오류");
-    } finally {
+      const errorMsg = err instanceof Error ? err.message : "알 수 없는 오류";
+      setError(errorMsg);
+
+      // 캐시된 데이터가 없으면 로딩 해제
+      if (!data) {
+        setLoading(false);
+      }
+    }
+
+    if (data) {
       setLoading(false);
     }
-  }, []);
+  }, [data]);
 
   useEffect(() => {
     fetchData();
