@@ -1558,6 +1558,7 @@ export default function DashboardPage() {
     if (!summary) return [];
     if (activeTab === "전체") {
       return adjustedGroups
+        .filter((g) => g.category !== "개별주식")
         .flatMap((g) => g.items)
         .sort((a, b) => b.returnRate - a.returnRate);
     }
