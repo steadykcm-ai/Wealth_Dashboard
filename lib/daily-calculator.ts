@@ -70,33 +70,38 @@ async function calculateCash(userId: string): Promise<number> {
 }
 
 async function calculateCrypto(prices: Record<string, number>, userId: string): Promise<CategorySummary> {
-  const { data: cryptoAssets, error } = await supabase
-    .from("crypto_assets")
-    .select("*")
-    .eq("is_cash", false)
-    .eq("user_id", userId);
+  try {
+    // Jake만 암호화폐 데이터 보유
+    const OWNER_USER_ID = "56701cc8-3dff-405d-a2b7-1ff4301e92cc";
+    if (userId !== OWNER_USER_ID) {
+      return { invest: 0, value: 0, profit: 0 };
+    }
 
-  if (error || !cryptoAssets) {
+    // Bithumb 홀딩 조회
+    const { fetchBithumbData } = await import("@/lib/bithumb-private");
+    const bithumbData = await fetchBithumbData();
+
+    let invest = 0;
+    let value = 0;
+
+    // Bithumb 자산
+    bithumbData.holdings.forEach((holding) => {
+      const itemInvest = holding.balance * holding.avgPrice;
+      const currentPrice = prices[holding.currency] || holding.avgPrice;
+      const itemValue = holding.balance * currentPrice;
+
+      invest += itemInvest;
+      value += itemValue;
+    });
+
+    return {
+      invest,
+      value,
+      profit: value - invest,
+    };
+  } catch {
     return { invest: 0, value: 0, profit: 0 };
   }
-
-  let invest = 0;
-  let value = 0;
-
-  cryptoAssets.forEach((item) => {
-    const itemInvest = item.quantity * item.avg_price;
-    const currentPrice = prices[item.ticker] || item.avg_price;
-    const itemValue = item.quantity * currentPrice;
-
-    invest += itemInvest;
-    value += itemValue;
-  });
-
-  return {
-    invest,
-    value,
-    profit: value - invest,
-  };
 }
 
 export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
