@@ -1655,9 +1655,9 @@ export default function DashboardPage() {
 
   const title = activeTab === "전체" ? "전체 자산 현황" : activeTab;
 
-  // 전체자산 탭용 필터링된 그룹 (개별주식, 암호화폐 제외)
+  // 전체자산 탭용 필터링된 그룹 (모든 자산 제외 - 차트만 표시)
   const filteredGroupsForOverview = adjustedGroups.filter(
-    (g) => g.category !== "개별주식" && g.category !== "암호화폐"
+    (g) => g.category !== "개별주식" && g.category !== "암호화폐" && g.category !== "개인연금" && g.category !== "IRP"
   );
 
   return (
