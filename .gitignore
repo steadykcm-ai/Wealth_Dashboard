@@ -35,6 +35,10 @@ next-env.d.ts
 # sensitive keys
 google-key.json.json
 .env.local.vercel
+.claude/settings.local.json
+check_codes.js
+scripts/migrate*.js
+scripts/run-sql-migration.js
 
 # playwright logs
 .playwright-mcp/
