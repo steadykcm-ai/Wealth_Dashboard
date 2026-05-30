@@ -1,14 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/cron/update-prices",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/update-crypto",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/save-daily-log",
       "schedule": "0 0 * * *"
     }
