@@ -1655,11 +1655,6 @@ export default function DashboardPage() {
 
   const title = activeTab === "전체" ? "전체 자산 현황" : activeTab;
 
-  // 전체자산 탭용 필터링된 그룹 (모든 자산 제외 - 차트만 표시)
-  const filteredGroupsForOverview = adjustedGroups.filter(
-    (g) => g.category !== "개별주식" && g.category !== "암호화폐" && g.category !== "개인연금" && g.category !== "IRP"
-  );
-
   return (
     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
@@ -1732,7 +1727,7 @@ export default function DashboardPage() {
         {activeTab === "전체" && (
           <>
             <PortfolioOverview
-              groups={filteredGroupsForOverview}
+              groups={adjustedGroups}
               breakdown={data?.breakdown ?? null}
               loading={loading}
               onTabChange={setActiveTab}
@@ -1848,8 +1843,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 자산 목록 (암호화폐 탭 제외) */}
-        {!isCryptoTab && <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] overflow-hidden mx-4 md:mx-0 mb-6">
+        {/* 자산 목록 (암호화폐, 전체 탭 제외) */}
+        {!isCryptoTab && activeTab !== "전체" && <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] overflow-hidden mx-4 md:mx-0 mb-6">
           {/* 섹션 제목 */}
           <div className="px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
