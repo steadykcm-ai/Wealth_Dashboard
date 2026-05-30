@@ -143,20 +143,21 @@ export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
 export async function saveDailyLog(userId: string): Promise<boolean> {
   try {
     const dailyData = await calculateDailyLog(userId);
+    console.log("📊 계산된 daily log:", JSON.stringify(dailyData));
 
     const { error } = await supabase
       .from("daily_log")
       .upsert([{ ...dailyData, user_id: userId }], { onConflict: "date,user_id" });
 
     if (error) {
-      console.error("Daily log 저장 실패:", error.message);
+      console.error("Supabase upsert 에러:", error);
       return false;
     }
 
     console.log(`✅ Daily log 저장 완료: ${dailyData.date}`);
     return true;
   } catch (error) {
-    console.error("Daily log 계산 실패:", error);
+    console.error("Daily log 계산/저장 실패:", error);
     return false;
   }
 }
