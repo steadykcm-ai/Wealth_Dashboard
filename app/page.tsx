@@ -1558,7 +1558,7 @@ export default function DashboardPage() {
     if (!summary) return [];
     if (activeTab === "전체") {
       return adjustedGroups
-        .filter((g) => g.category !== "개별주식")
+        .filter((g) => g.category !== "개별주식" && g.category !== "암호화폐")
         .flatMap((g) => g.items)
         .sort((a, b) => b.returnRate - a.returnRate);
     }
