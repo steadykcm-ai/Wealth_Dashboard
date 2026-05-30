@@ -9,12 +9,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Cron, 정적 리소스는 미들웨어 제외
+  // Cron, 정적 리소스, OAuth 콜백은 미들웨어 제외
   if (
     requestUrl.pathname.startsWith("/api/cron") ||
     requestUrl.pathname.startsWith("/_next") ||
     requestUrl.pathname.startsWith("/favicon") ||
-    requestUrl.pathname.startsWith("/api/auth")
+    requestUrl.pathname.startsWith("/api/auth") ||
+    requestUrl.pathname.startsWith("/auth/")
   ) {
     return NextResponse.next();
   }
