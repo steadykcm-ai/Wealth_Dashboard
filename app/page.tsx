@@ -1674,8 +1674,7 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={async () => {
-                const { supabase } = await import("@/lib/supabase-browser");
-                await supabase.auth.signOut();
+                await fetch("/api/logout", { method: "POST" });
                 window.location.href = "/login";
               }}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white transition-colors hover:bg-[#2a3a4a]"
