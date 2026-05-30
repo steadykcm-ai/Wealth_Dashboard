@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
+import { createSupabaseServer } from "@/lib/supabase-server";
 
 export const revalidate = 0;
 
@@ -40,6 +41,12 @@ async function searchAndValidate(
 
 export async function GET(request: Request) {
   try {
+    const supabaseServer = createSupabaseServer();
+    const { data: { session } } = await supabaseServer.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q");
 

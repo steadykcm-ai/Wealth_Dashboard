@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useRouter } from "react";
 import { useTheme } from "next-themes";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useAssets } from "@/lib/useAssets";
@@ -566,6 +566,36 @@ function SummaryCard({
   );
 }
 
+// ── 로그아웃 버튼 ────────────────────────────────────
+function LogoutButton() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogout() {
+    setLoading(true);
+    try {
+      const { createSupabaseBrowser } = await import("@/lib/supabase-browser");
+      const supabase = createSupabaseBrowser();
+      await supabase.auth.signOut();
+      router.push("/login");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "로그아웃 실패");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleLogout}
+      disabled={loading}
+      className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-[#2a3a4a] transition-colors disabled:opacity-50"
+      title="로그아웃"
+    >
+      {loading ? "로그아웃 중..." : "로그아웃"}
+    </button>
+  );
+}
+
 // ── 사이드바 (데스크톱) ──────────────────────────────────
 function Sidebar({
   activeTab,
@@ -613,6 +643,9 @@ function Sidebar({
           </button>
         ))}
       </nav>
+      <div className="border-t border-[#2a3a4a] pt-4 mt-4">
+        <LogoutButton />
+      </div>
     </aside>
   );
 }

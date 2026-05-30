@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchUpbitPrices } from "@/lib/upbit";
 import { fetchUpbitData } from "@/lib/upbit-private";
 import { fetchBithumbData } from "@/lib/bithumb-private";
+import { createSupabaseServer } from "@/lib/supabase-server";
 import type { AssetItem, ExchangeGroup, CryptoApiResponse } from "@/lib/types";
 
 export const revalidate = 0;
@@ -46,6 +47,12 @@ async function buildExchange(exchangeName: string, holdings: { currency: string;
 
 export async function GET() {
   try {
+    const supabaseServer = createSupabaseServer();
+    const { data: { session } } = await supabaseServer.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // 모든 거래소 데이터 병렬 조회
     const [bithumbData, upbitData] = await Promise.all([
       fetchBithumbData().catch(() => ({ holdings: [], krwBalance: 0 })),

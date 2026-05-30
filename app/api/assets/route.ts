@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { createSupabaseServer } from "@/lib/supabase-server";
 import type { AssetSummary } from "@/lib/types";
 
 export const revalidate = 0;
@@ -138,6 +139,12 @@ async function buildAssetSummaryFromSupabase(): Promise<AssetSummary> {
 
 export async function GET() {
   try {
+    const supabaseServer = createSupabaseServer();
+    const { data: { session } } = await supabaseServer.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const summary = await buildAssetSummaryFromSupabase();
 
     const response = {

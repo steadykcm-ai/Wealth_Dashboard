@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { createSupabaseServer } from "@/lib/supabase-server";
 
 export async function POST(req: NextRequest) {
   try {
+    const supabaseServer = createSupabaseServer();
+    const { data: { session } } = await supabaseServer.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await req.json() as {
       assetType: string;
       accountName: string;
@@ -49,6 +55,12 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const supabaseServer = createSupabaseServer();
+    const { data: { session } } = await supabaseServer.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json() as {
       id: number;
       field: "quantity" | "avgPrice";
@@ -90,6 +102,12 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const supabaseServer = createSupabaseServer();
+    const { data: { session } } = await supabaseServer.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json() as { id: number };
     const { id } = body;
 
