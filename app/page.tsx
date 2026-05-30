@@ -575,8 +575,7 @@ function LogoutButton() {
   async function handleLogout() {
     setLoading(true);
     try {
-      const { createSupabaseBrowser } = await import("@/lib/supabase-browser");
-      const supabase = createSupabaseBrowser();
+      const { supabase } = await import("@/lib/supabase-browser");
       await supabase.auth.signOut();
       router.push("/login");
     } catch (err) {
