@@ -215,13 +215,15 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
 
   // 기간 필터링
   const filteredLogs = (() => {
-    if (period === "all") return logs;
-
-    const now = new Date();
-    const days = period === "1month" ? 30 : 90;
-    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-    return logs.filter(log => new Date(log.date) >= cutoff);
+    let result = logs;
+    if (period !== "all") {
+      const now = new Date();
+      const days = period === "1month" ? 30 : 90;
+      const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      result = logs.filter(log => new Date(log.date) >= cutoff);
+    }
+    // 오름차순으로 정렬 (왼쪽=이전, 오른쪽=최신)
+    return result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   })();
 
   const data = filteredLogs.map((log) => ({
@@ -239,7 +241,7 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length > 0) {
-      const { total, stocks, pension, irp, crypto, fullDate } = payload[0].payload;
+      const { total, stocks, pension, crypto, fullDate } = payload[0].payload;
       return (
         <div className="rounded-md bg-white/90 dark:bg-gray-900/90 px-3 py-2 border border-gray-200 dark:border-gray-700 shadow-md">
           <p className="text-xs font-semibold mb-2" style={{ color: textColor }}>
@@ -252,7 +254,6 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
           <p className="text-xs" style={{ color: "#3d47cf" }}>총자산: {formatKRW(total)}</p>
           <p className="text-xs" style={{ color: "#26a69a" }}>주식: {formatKRW(stocks)}</p>
           <p className="text-xs" style={{ color: "#ff7043" }}>연금: {formatKRW(pension)}</p>
-          <p className="text-xs" style={{ color: "#ab47bc" }}>IRP: {formatKRW(irp)}</p>
           <p className="text-xs" style={{ color: "#fbc02d" }}>암호화폐: {formatKRW(crypto)}</p>
         </div>
       );
