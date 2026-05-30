@@ -87,7 +87,7 @@ async function buildAssetSummaryFromSupabase(): Promise<AssetSummary> {
     const accountMap: Record<string, any> = {};
 
     group.items.forEach((item: any) => {
-      const rawAccountName = (assets || []).find((a) => a.name === item.name)?.account_name || "Unknown";
+      const rawAccountName = (assets || []).find((a) => a.id === item.id)?.account_name || "Unknown";
       const accountName = normalizeAccountName(rawAccountName);
 
       if (!accountMap[accountName]) {
