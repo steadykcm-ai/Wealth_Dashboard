@@ -1812,7 +1812,7 @@ export default function DashboardPage() {
         {activeTab === "전체" && summary && (
           <div className="mx-4 md:mx-0 mb-6">
             {summary.groups.map((group) => {
-              if (group.category === "개별주식" || group.category === "암호화폐") return null;
+              if (group.category === "개별주식" || group.category === "암호화폐" || group.category === "개인연금" || group.category === "IRP") return null;
               if (group.accounts.length === 0 && group.cash <= 0) return null;
               return (
                 <div key={group.category} className="mb-6">
