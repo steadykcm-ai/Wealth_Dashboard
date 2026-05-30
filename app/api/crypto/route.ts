@@ -5,7 +5,8 @@ import { fetchBithumbData } from "@/lib/bithumb-private";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import type { AssetItem, ExchangeGroup, CryptoApiResponse } from "@/lib/types";
 
-export const revalidate = 0;
+// 60초 캐시
+export const revalidate = 60;
 
 async function buildExchange(exchangeName: string, holdings: { currency: string; balance: number; avgPrice: number }[], krwBalance: number, upbitPrices: Record<string, number>): Promise<ExchangeGroup> {
   const exchange: ExchangeGroup = {
