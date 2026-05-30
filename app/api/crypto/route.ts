@@ -67,10 +67,19 @@ export async function GET() {
       });
     }
 
-    // 모든 거래소 데이터 병렬 조회
+    // 모든 거래소 데이터 병렬 조회 (3초 타임아웃)
+    const timeoutPromise = (ms: number) =>
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms));
+
     const [bithumbData, upbitData] = await Promise.all([
-      fetchBithumbData().catch(() => ({ holdings: [], krwBalance: 0 })),
-      fetchUpbitData().catch(() => ({ holdings: [], krwBalance: 0 })),
+      Promise.race([fetchBithumbData(), timeoutPromise(3000)]).catch(() => ({
+        holdings: [],
+        krwBalance: 0,
+      })),
+      Promise.race([fetchUpbitData(), timeoutPromise(3000)]).catch(() => ({
+        holdings: [],
+        krwBalance: 0,
+      })),
     ]);
 
     // 모든 티커 수집해서 현재가 한번에 조회
