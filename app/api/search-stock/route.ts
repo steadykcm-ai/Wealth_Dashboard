@@ -41,7 +41,7 @@ async function searchAndValidate(
 
 export async function GET(request: Request) {
   try {
-    const supabaseServer = createSupabaseServer();
+    const supabaseServer = await createSupabaseServer();
     const { data: { session } } = await supabaseServer.auth.getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

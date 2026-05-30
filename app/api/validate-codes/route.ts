@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { createSupabaseServer } from "@/lib/supabase-server";
 import YahooFinance from "yahoo-finance2";
 
 export const revalidate = 0;
@@ -23,6 +24,12 @@ async function validateCode(code: string): Promise<{ valid: boolean; price?: num
 
 export async function GET() {
   try {
+    const supabaseServer = await createSupabaseServer();
+    const { data: { session } } = await supabaseServer.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { data: assets, error } = await supabase
       .from("assets")
       .select("id, name, code, avg_price")

@@ -47,7 +47,7 @@ async function buildExchange(exchangeName: string, holdings: { currency: string;
 
 export async function GET() {
   try {
-    const supabaseServer = createSupabaseServer();
+    const supabaseServer = await createSupabaseServer();
     const { data: { session } } = await supabaseServer.auth.getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

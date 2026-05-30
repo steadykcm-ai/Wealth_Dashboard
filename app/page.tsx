@@ -667,6 +667,12 @@ function MobileHeader({
   refreshing: boolean;
 }) {
   const { theme, setTheme } = useTheme();
+
+  async function handleLogout() {
+    const { supabase } = await import("@/lib/supabase-browser");
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
   return (
     <header
       className="md:hidden fixed top-0 left-0 right-0 z-50"
@@ -692,6 +698,13 @@ function MobileHeader({
             title="가격 새로고침"
           >
             {refreshing ? "⏳" : "↻"}
+          </button>
+          <button
+            onClick={handleLogout}
+            className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#2a3a4a]"
+            title="로그아웃"
+          >
+            ⎋
           </button>
         </div>
       </div>
@@ -1650,14 +1663,27 @@ export default function DashboardPage() {
         {/* 데스크톱 헤더 */}
         <div className="hidden md:flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
-          <button
-            onClick={refetch}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: "#3d47cf" }}
-          >
-            {refreshing ? "⏳ 새로고침 중..." : "↻ 새로고침"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={refetch}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: "#3d47cf" }}
+            >
+              {refreshing ? "⏳ 새로고침 중..." : "↻ 새로고침"}
+            </button>
+            <button
+              onClick={async () => {
+                const { supabase } = await import("@/lib/supabase-browser");
+                await supabase.auth.signOut();
+                window.location.href = "/login";
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white transition-colors hover:bg-[#2a3a4a]"
+              title="로그아웃"
+            >
+              ⎋
+            </button>
+          </div>
         </div>
 
         {/* 모바일 타이틀 */}

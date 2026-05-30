@@ -4,7 +4,7 @@ import { createSupabaseServer } from "@/lib/supabase-server";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabaseServer = createSupabaseServer();
+    const supabaseServer = await createSupabaseServer();
     const { data: { session } } = await supabaseServer.auth.getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const supabaseServer = createSupabaseServer();
+    const supabaseServer = await createSupabaseServer();
     const { data: { session } } = await supabaseServer.auth.getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -102,7 +102,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const supabaseServer = createSupabaseServer();
+    const supabaseServer = await createSupabaseServer();
     const { data: { session } } = await supabaseServer.auth.getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
