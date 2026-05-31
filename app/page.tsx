@@ -614,7 +614,7 @@ function Sidebar({
   ];
   return (
     <aside
-      className="hidden md:flex flex-col w-56 min-h-screen px-4 py-8 shrink-0"
+      className="hidden md:flex flex-col w-56 min-h-screen px-4 py-8 shrink-0 fixed top-0 left-0"
       style={{ background: "#1a2332" }}
     >
       <div className="mb-10 px-2 flex items-center justify-between">
@@ -1328,7 +1328,7 @@ function AccountsOverview({
           {accounts.map((acct) => {
             const cashKey = `${acct.sheetTab ?? ""}-${acct.cashRowIndex ?? ""}`;
             const displayCash = cashOverrides?.[cashKey] ?? acct.cash;
-            const canEditCash = editable && !!acct.sheetTab && !!acct.cashRowIndex && !!onCashSave;
+            const canEditCash = editable && !!onCashSave;
             return (
               <div
                 key={acct.name}
@@ -1467,20 +1467,28 @@ export default function DashboardPage() {
   }
 
   async function saveCash(account: AccountGroup, value: number) {
-    if (!account.sheetTab || !account.cashRowIndex) throw new Error("계좌 정보 부족");
-    const res = await fetch("/api/assets/item", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sheetTab: account.sheetTab, rowIndex: account.cashRowIndex, field: "cash", value }),
-    });
-    if (!res.ok) {
-      const body = await res.json() as { error?: string };
-      throw new Error(body.error ?? "저장 실패");
+    try {
+      const supabaseServer = await fetch("/api/assets", { method: "GET" }).then(r => r.ok);
+
+      // Supabase에 직접 업데이트 (계좌명 기반)
+      const res = await fetch("/api/cash-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountName: account.name, amount: value }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? "저장 실패");
+      }
+
+      const key = `${account.name}`;
+      setCashOverrides((prev) => ({ ...prev, [key]: value }));
+      // 대시보드 데이터 갱신
+      await refetch();
+    } catch (err) {
+      throw err instanceof Error ? err : new Error("현금 저장 실패");
     }
-    const key = `${account.sheetTab ?? ""}-${account.cashRowIndex ?? ""}`;
-    setCashOverrides((prev) => ({ ...prev, [key]: value }));
-    // 대시보드 데이터 갱신
-    await refetch();
   }
 
   function handleItemAdded() {
@@ -1730,7 +1738,7 @@ export default function DashboardPage() {
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refetch} onUpdateCrypto={updateCryptoLogTotal} updatingCrypto={updatingCrypto} refreshing={refreshing} />
 
-      <main className="flex-1 overflow-auto pt-[88px] md:pt-0 md:px-8 md:py-8">
+      <main className="flex-1 overflow-auto pt-[88px] md:pt-0 md:px-8 md:py-8 md:ml-56">
         {/* 데스크톱 헤더 */}
         <div className="hidden md:flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
@@ -1742,16 +1750,6 @@ export default function DashboardPage() {
               style={{ background: "#3d47cf" }}
             >
               {refreshing ? "⏳ 새로고침 중..." : "↻ 새로고침"}
-            </button>
-            <button
-              onClick={async () => {
-                await fetch("/api/logout", { method: "POST" });
-                window.location.href = "/login";
-              }}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white transition-colors hover:bg-[#2a3a4a]"
-              title="로그아웃"
-            >
-              ⎋
             </button>
           </div>
         </div>
