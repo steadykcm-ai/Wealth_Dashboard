@@ -1326,8 +1326,7 @@ function AccountsOverview({
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {accounts.map((acct) => {
-            const cashKey = `${acct.sheetTab ?? ""}-${acct.cashRowIndex ?? ""}`;
-            const displayCash = cashOverrides?.[cashKey] ?? acct.cash;
+            const displayCash = cashOverrides?.[acct.name] ?? acct.cash;
             const canEditCash = editable && !!onCashSave;
             return (
               <div
