@@ -21,13 +21,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "필수 파라미터 누락" }, { status: 400 });
     }
 
-    // 기존 cash 레코드 찾기
-    const { data: existing } = await supabase
+    // 기존 cash 레코드 찾기 (정확한 이름 또는 부분 매칭으로 검색)
+    let { data: existing } = await supabase
       .from("cash")
       .select("id")
       .eq("account_name", accountName)
       .eq("user_id", session.user.id)
       .single();
+
+    // 정확한 매칭 없으면 부분 매칭 검색 (예: "NH_CMA" → "NH_CMA7987")
+    if (!existing) {
+      const { data: partialMatch } = await supabase
+        .from("cash")
+        .select("id, account_name")
+        .like("account_name", `${accountName}%`)
+        .eq("user_id", session.user.id);
+      if (partialMatch && partialMatch.length > 0) {
+        existing = partialMatch[0];
+      }
+    }
 
     let result;
     if (existing) {

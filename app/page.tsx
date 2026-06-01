@@ -1467,8 +1467,6 @@ export default function DashboardPage() {
 
   async function saveCash(account: AccountGroup, value: number) {
     try {
-      const supabaseServer = await fetch("/api/assets", { method: "GET" }).then(r => r.ok);
-
       // Supabase에 직접 업데이트 (계좌명 기반)
       const res = await fetch("/api/cash-update", {
         method: "POST",
@@ -1890,8 +1888,9 @@ export default function DashboardPage() {
                   <AccountsOverview
                     accounts={group.accounts}
                     totalCash={group.cash}
-                    editable={false}
+                    editable={isEditable}
                     cashOverrides={cashOverrides}
+                    onCashSave={saveCash}
                     onAddAccount={undefined}
                   />
                 </div>
