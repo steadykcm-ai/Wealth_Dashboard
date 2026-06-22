@@ -15,6 +15,12 @@ async function fetchYahooPrice(code: string): Promise<number | null> {
   }
 }
 
+async function fetchDomesticPrice(code: string): Promise<number | null> {
+  const kospiPrice = await fetchYahooPrice(`${code}.KS`);
+  if (kospiPrice) return kospiPrice;
+  return fetchYahooPrice(`${code}.KQ`);
+}
+
 export async function fetchStockPrices(
   codes: string[]
 ): Promise<Record<string, number>> {
@@ -27,16 +33,13 @@ export async function fetchStockPrices(
 
   const prices: Record<string, number> = {};
 
-  const yahooFormattedCodes = validCodes.map(code => {
-    // Convert Korean stock codes (6 digits) to Yahoo Finance format (code.KS or code.KQ)
+  const pricePromises = validCodes.map((code) => {
     if (/^\d{6}$/.test(code)) {
-      return `${code}.KS`; // Default to KOSPI
+      return fetchDomesticPrice(code);
     }
-    // If code already has .KS or .KQ, use as-is
-    return code;
+    return fetchYahooPrice(code);
   });
 
-  const pricePromises = yahooFormattedCodes.map(code => fetchYahooPrice(code));
   const results = await Promise.all(pricePromises);
   results.forEach((price, index) => {
     if (price) {

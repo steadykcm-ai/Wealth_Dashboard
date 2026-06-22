@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { fetchStockPrices } from "@/lib/price-fetcher";
 
 interface CategorySummary {
   invest: number;
@@ -18,6 +19,64 @@ interface DailyLogData {
   crypto_value: number;
   crypto_profit: number;
   total_cash: number;
+}
+
+interface PriceRow {
+  code?: string | null;
+  price?: number | null;
+}
+
+interface AssetCodeRow {
+  code?: string | null;
+}
+
+async function fetchLivePrices(userId: string): Promise<Record<string, number>> {
+  const { data: assets, error } = await supabase
+    .from("assets")
+    .select("code")
+    .eq("is_cash", false)
+    .eq("user_id", userId)
+    .neq("asset_type", "암호화폐");
+
+  if (error || !assets) return {};
+
+  const codes = Array.from(
+    new Set(
+      (assets as AssetCodeRow[])
+        .map((asset) => asset.code)
+        .filter((code): code is string => Boolean(code))
+    )
+  );
+
+  const prices = await fetchStockPrices(codes);
+  const priceRecords = Object.entries(prices).map(([code, price]) => ({
+    code,
+    price,
+    updated_at: new Date().toISOString(),
+  }));
+
+  if (priceRecords.length > 0) {
+    await supabase.from("prices").upsert(priceRecords, { onConflict: "code" });
+  }
+
+  return prices;
+}
+
+async function fetchCachedPrices(): Promise<Record<string, number>> {
+  const { data: priceRows, error } = await supabase
+    .from("prices")
+    .select("code, price");
+
+  if (error || !priceRows) return {};
+
+  const prices: Record<string, number> = {};
+  (priceRows as PriceRow[]).forEach((row) => {
+    if (row.code && typeof row.price === "number" && row.price > 0) {
+      prices[row.code] = row.price;
+    }
+  });
+
+  return prices;
 }
 
 async function calculateCategory(
@@ -67,9 +126,13 @@ async function calculateCash(userId: string): Promise<number> {
 }
 
 export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
+  const livePrices = await fetchLivePrices(userId);
+  const cachedPrices = await fetchCachedPrices();
+  const prices = { ...cachedPrices, ...livePrices };
+
   // 카테고리별 계산
-  const stocks = await calculateCategory("개별주식", {}, userId);
-  const pension = await calculateCategory("개인연금", {}, userId);
+  const stocks = await calculateCategory("개별주식", prices, userId);
+  const pension = await calculateCategory("개인연금", prices, userId);
   const totalCash = await calculateCash(userId);
 
   const today = new Date().toISOString().split("T")[0];
