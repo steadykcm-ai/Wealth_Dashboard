@@ -44,7 +44,6 @@ const CATEGORY_COLORS: Record<AssetCategory, string> = {
   개별주식: "#3d47cf",
   개인연금: "#26a69a",
   IRP: "#4db8a8",
-  암호화폐: "#ab47bc",
 };
 
 const TABS = [
@@ -1440,7 +1439,7 @@ export default function DashboardPage() {
     setSavingProfit(true);
     try {
       const summary = data.summary;
-      const portfolioGroups = summary.groups.filter((g) => g.category !== "암호화폐");
+      const portfolioGroups = summary.groups;
       const portfolioInvest = portfolioGroups.reduce((s, g) => s + g.totalInvest, 0);
       const portfolioValue = portfolioGroups.reduce((s, g) => s + g.totalValue, 0);
       const portfolioCash = portfolioGroups.reduce((s, g) => s + g.cash, 0);
@@ -1514,7 +1513,7 @@ export default function DashboardPage() {
 
   const adjustedGroups: AssetGroup[] = (() => {
     if (!summary) return [];
-    return summary.groups.filter((g) => g.category !== "암호화폐");
+    return summary.groups;
   })();
 
   const isEditable = activeTab !== "전체";
@@ -1704,7 +1703,7 @@ export default function DashboardPage() {
         {activeTab === "전체" && summary && (
           <div className="mx-4 md:mx-0 mb-6">
             {summary.groups.map((group) => {
-              if (group.category === "개별주식" || group.category === "암호화폐" || group.category === "개인연금" || group.category === "IRP") return null;
+              if (group.category === "개별주식" || group.category === "개인연금" || group.category === "IRP") return null;
               if (group.accounts.length === 0 && group.cash <= 0) return null;
               return (
                 <div key={group.category} className="mb-6">

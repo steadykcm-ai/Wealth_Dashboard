@@ -1,4 +1,4 @@
-// 자산 항목 (주식, 연금, IRP, 암호화폐 공통)
+// 자산 항목 (주식, 연금, IRP 공통)
 export interface AssetItem {
   id?: number;        // DB id (Supabase)
   name: string;       // 종목명
@@ -15,7 +15,7 @@ export interface AssetItem {
 }
 
 // 자산 카테고리
-export type AssetCategory = "개별주식" | "개인연금" | "IRP" | "암호화폐";
+export type AssetCategory = "개별주식" | "개인연금" | "IRP";
 
 // 계좌별 자산 그룹
 export interface AccountGroup {

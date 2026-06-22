@@ -57,7 +57,7 @@ function parseRow(row: RawRow, rowIndex?: number): AssetItem | null {
 }
 
 function toAssetCategory(value: string): AssetCategory | null {
-  if (value === "개별주식" || value === "개인연금" || value === "IRP" || value === "암호화폐") {
+  if (value === "개별주식" || value === "개인연금" || value === "IRP") {
     return value;
   }
   return null;
