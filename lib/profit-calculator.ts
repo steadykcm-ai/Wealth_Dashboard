@@ -1,4 +1,4 @@
-import type { AssetItem, AssetGroup, AssetSummary, PortfolioBreakdown, AccountGroup } from "@/lib/types";
+import type { AssetCategory, AssetItem, AssetGroup, AssetSummary, PortfolioBreakdown, AccountGroup } from "@/lib/types";
 import { ASSETS_TAB } from "@/lib/sheetConfig";
 
 type RawRow = (string | number)[];
@@ -56,6 +56,13 @@ function parseRow(row: RawRow, rowIndex?: number): AssetItem | null {
   };
 }
 
+function toAssetCategory(value: string): AssetCategory | null {
+  if (value === "개별주식" || value === "개인연금" || value === "IRP" || value === "암호화폐") {
+    return value;
+  }
+  return null;
+}
+
 // 단일 Assets 시트 파싱: A열(자산유형) + B열(계좌명)로 그룹핑
 function parseAssetsSheet(rows: RawRow[]): Record<string, AssetGroup> {
   const groups: Record<string, AssetGroup> = {};
@@ -83,6 +90,9 @@ function parseAssetsSheet(rows: RawRow[]): Record<string, AssetGroup> {
   // 자산유형별로 그룹핑
   const assetTypes = Array.from(new Set(itemsWithMetadata.map((m) => m.assetType)));
   for (const assetType of assetTypes) {
+    const category = toAssetCategory(assetType);
+    if (!category) continue;
+
     const typeMetadata = itemsWithMetadata.filter((m) => m.assetType === assetType);
     const typeItems = typeMetadata.map((m) => m.item);
 
@@ -120,7 +130,7 @@ function parseAssetsSheet(rows: RawRow[]): Record<string, AssetGroup> {
     const returnRate = totalInvest > 0 ? (totalProfitLoss / totalInvest) * 100 : 0;
 
     groups[assetType] = {
-      category: assetType as any, // will be validated in calling code
+      category,
       items: typeItems,
       totalInvest,
       totalValue: totalValue + totalCash,

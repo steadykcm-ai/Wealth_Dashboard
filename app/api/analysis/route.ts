@@ -69,7 +69,6 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("Analysis API error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "분석 생성 실패" },
       { status: 500 }

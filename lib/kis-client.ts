@@ -3,6 +3,17 @@ const BASE_URL = "https://openapi.koreainvestment.com:9443";
 let cachedToken: string | null = null;
 let tokenExpireTime: number = 0;
 
+interface KisTokenResponse {
+  access_token?: string;
+  expires_in?: number;
+}
+
+interface KisPriceResponse {
+  output?: {
+    stck_prpr?: string;
+  };
+}
+
 async function getAccessToken(): Promise<string> {
   const now = Date.now();
   if (cachedToken && tokenExpireTime > now) {
@@ -36,9 +47,9 @@ async function getAccessToken(): Promise<string> {
       throw new Error(`Token request failed: ${response.status} ${errorText}`);
     }
 
-    const data = (await response.json()) as any;
+    const data = (await response.json()) as KisTokenResponse;
 
-    const token = data.access_token as string;
+    const token = data.access_token;
     if (!token) throw new Error("No access_token in response");
 
     cachedToken = token;
@@ -69,23 +80,20 @@ export async function fetchKISPrice(code: string): Promise<number | null> {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error(`[KIS ${code}] HTTP ${response.status}:`, error);
       return null;
     }
 
-    const data = (await response.json()) as any;
-    console.log(`[KIS ${code}] 응답 데이터:`, JSON.stringify(data).substring(0, 200));
+    const data = (await response.json()) as KisPriceResponse;
 
-    const price = parseFloat(data.output?.stck_prpr);
-    console.log(`[KIS ${code}] 파싱된 가격:`, price, "isNaN:", isNaN(price));
+    const rawPrice = data.output?.stck_prpr;
+    if (!rawPrice) return null;
+
+    const price = parseFloat(rawPrice);
 
     if (!isNaN(price) && price > 0) {
-      console.log(`[KIS ${code}] ✅ 성공: ${price}`);
       return price;
     }
 
-    console.warn(`[KIS ${code}] ❌ 가격 파싱 실패 - stck_prpr:`, data.output?.stck_prpr);
     return null;
   } catch (err: unknown) {
     return null;

@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [supabase, setSupabase] = useState<any>(null);
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
   useEffect(() => {
     // 클라이언트 사이드에서만 Supabase 초기화
@@ -15,8 +16,7 @@ export default function LoginPage() {
       try {
         const { supabase: sb } = await import("@/lib/supabase-browser");
         setSupabase(sb);
-      } catch (err) {
-        console.error("Supabase 초기화 실패:", err);
+      } catch {
         setError("로그인 시스템 초기화 실패");
       }
     }
@@ -32,8 +32,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      console.log("Google OAuth 시작...");
-      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -43,10 +42,8 @@ export default function LoginPage() {
         },
       });
 
-      console.log("OAuth 응답:", { data, signInError });
       if (signInError) throw signInError;
     } catch (err: unknown) {
-      console.error("로그인 에러:", err);
       const message = err instanceof Error ? err.message : "로그인 실패";
       setError(message);
       setLoading(false);

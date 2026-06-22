@@ -27,7 +27,6 @@ export async function GET() {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "크론 작업 실패";
-    console.error("Crypto cron error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

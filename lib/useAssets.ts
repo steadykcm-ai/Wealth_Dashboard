@@ -40,16 +40,9 @@ export function useAssets(): UseAssetsResult {
     setRefreshing(true);
     setError(null);
     try {
-      // 주식 가격 갱신
-      const updateRes = await fetch("/api/cron/update-prices", { cache: "no-store" });
-      if (!updateRes.ok) {
-        const body = (await updateRes.json()) as { error?: string };
-        throw new Error(body.error ?? `가격 업데이트 실패 (HTTP ${updateRes.status})`);
-      }
+      await fetch("/api/cron/update-prices", { cache: "no-store" }).catch(() => null);
 
-      // 암호화폐 수익 스냅샷 저장
-      await fetch("/api/daily-snapshot", { cache: "no-store" }).catch(() => null);
-
+      // 데이터는 반드시 새로고침
       await fetchData(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "새로고침 실패");

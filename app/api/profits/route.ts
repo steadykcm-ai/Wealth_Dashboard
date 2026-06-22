@@ -30,10 +30,10 @@ export async function GET() {
       .map((row) => ({
         date: row.date,
         total: {
-          invest: (row.stocks_invest || 0) + (row.pension_invest || 0) + (row.crypto_invest || 0),
-          value: (row.stocks_value || 0) + (row.pension_value || 0) + (row.crypto_value || 0) + (row.total_cash || 0),
-          profit: (row.stocks_profit || 0) + (row.pension_profit || 0) + (row.crypto_profit || 0),
-          total: (row.stocks_value || 0) + (row.pension_value || 0) + (row.crypto_value || 0) + (row.total_cash || 0),
+          invest: (row.stocks_invest || 0) + (row.pension_invest || 0),
+          value: (row.stocks_value || 0) + (row.pension_value || 0) + (row.total_cash || 0),
+          profit: (row.stocks_profit || 0) + (row.pension_profit || 0),
+          total: (row.stocks_value || 0) + (row.pension_value || 0) + (row.total_cash || 0),
         },
         stocks: {
           invest: row.stocks_invest || 0,
@@ -48,16 +48,16 @@ export async function GET() {
           total: row.pension_value || 0,
         },
         blockchain: {
-          invest: row.crypto_invest || 0,
-          value: row.crypto_value || 0,
-          profit: row.crypto_profit || 0,
-          total: row.crypto_value || 0,
+          invest: 0,
+          value: 0,
+          profit: 0,
+          total: 0,
         },
         crypto: {
-          invest: row.crypto_invest || 0,
-          value: row.crypto_value || 0,
-          profit: row.crypto_profit || 0,
-          total: row.crypto_value || 0,
+          invest: 0,
+          value: 0,
+          profit: 0,
+          total: 0,
         },
       }));
 

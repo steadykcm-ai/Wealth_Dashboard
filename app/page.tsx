@@ -5,9 +5,19 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useAssets } from "@/lib/useAssets";
-import { useCrypto } from "@/lib/useCrypto";
 import { formatKRW, formatRate } from "@/lib/profit-calculator";
-import type { AssetCategory, AssetItem, AssetGroup, BreakdownItem, PortfolioBreakdown, ExchangeGroup, AccountGroup, DailyLogItem } from "@/lib/types";
+import type { AssetCategory, AssetItem, AssetGroup, BreakdownItem, PortfolioBreakdown, AccountGroup, DailyLogItem } from "@/lib/types";
+
+type ChartTooltipProps<TPayload extends object = Record<string, never>> = {
+  active?: boolean;
+  payload?: Array<{
+    name?: string;
+    label?: string;
+    value?: number;
+    payload?: TPayload;
+  }>;
+};
+
 // 종목 데이터: [종목명, GOOGLEFINANCE 티커] 형식
 type StockEntry = [string, string];
 let _stocksCache: StockEntry[] | null = null;
@@ -41,7 +51,6 @@ const TABS = [
   { id: "전체", label: "전체" },
   { id: "개별주식", label: "주식" },
   { id: "개인연금", label: "연금" },
-  { id: "암호화폐", label: "코인" },
 ];
 
 // ── 파이 차트 (recharts) ─────────────────────────────────
@@ -61,9 +70,9 @@ function DonutChart({ groups }: { groups: AssetGroup[] }) {
   const textColor = resolvedTheme === "dark" ? "#d1d5db" : "#111827";
   const labelColor = resolvedTheme === "dark" ? "#9ca3af" : "#6b7280";
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: ChartTooltipProps) => {
     if (active && payload && payload[0]) {
-      const { name, value } = payload[0];
+      const { name, value = 0 } = payload[0];
       const pct = ((value / total) * 100).toFixed(1);
       return (
         <div className="rounded-md bg-white/90 dark:bg-gray-900/90 px-2 py-1 border border-gray-200 dark:border-gray-700 shadow-md">
@@ -140,9 +149,9 @@ function SmallDonutChart({ title, items }: { title: string; items: BreakdownItem
 
   const textColor = resolvedTheme === "dark" ? "#d1d5db" : "#111827";
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: ChartTooltipProps) => {
     if (active && payload && payload[0]) {
-      const { label, value } = payload[0];
+      const { label, value = 0 } = payload[0];
       const pct = ((value / total) * 100).toFixed(1);
       return (
         <div className="rounded-md bg-white/90 dark:bg-gray-900/90 px-2 py-1 border border-gray-200 dark:border-gray-700 shadow-md">
@@ -207,9 +216,7 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
   const { resolvedTheme } = useTheme();
   const [period, setPeriod] = useState<"1month" | "3month" | "all">("all");
 
-  console.log("차트 데이터:", logs);
   if (logs.length === 0) {
-    console.log("차트 데이터 없음");
     return null;
   }
 
@@ -231,7 +238,6 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
     total: log.total.total,
     stocks: log.stocks.total,
     pension: log.pension.total,
-    crypto: log.crypto.total,
     fullDate: log.date,
   }));
 
@@ -239,9 +245,11 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
   const gridColor = resolvedTheme === "dark" ? "#2a3a4a" : "#f0f0f0";
   const axisColor = resolvedTheme === "dark" ? "#94a3b8" : "#6b7280";
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: ChartTooltipProps<{ total: number; stocks: number; pension: number; fullDate: string }>) => {
     if (active && payload && payload.length > 0) {
-      const { total, stocks, pension, crypto, fullDate } = payload[0].payload;
+      const chartPayload = payload[0].payload;
+      if (!chartPayload) return null;
+      const { total, stocks, pension, fullDate } = chartPayload;
       return (
         <div className="rounded-md bg-white/90 dark:bg-gray-900/90 px-3 py-2 border border-gray-200 dark:border-gray-700 shadow-md">
           <p className="text-xs font-semibold mb-2" style={{ color: textColor }}>
@@ -254,7 +262,6 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
           <p className="text-xs" style={{ color: "#3d47cf" }}>총자산: {formatKRW(total)}</p>
           <p className="text-xs" style={{ color: "#26a69a" }}>주식: {formatKRW(stocks)}</p>
           <p className="text-xs" style={{ color: "#ff7043" }}>연금: {formatKRW(pension)}</p>
-          <p className="text-xs" style={{ color: "#fbc02d" }}>암호화폐: {formatKRW(crypto)}</p>
         </div>
       );
     }
@@ -321,7 +328,6 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
             <Area type="monotone" dataKey="stocks" stroke="#26a69a" strokeWidth={1.5} fill="none" isAnimationActive={true} />
             <Area type="monotone" dataKey="pension" stroke="#ff7043" strokeWidth={1.5} fill="none" isAnimationActive={true} />
             <Area type="monotone" dataKey="irp" stroke="#ab47bc" strokeWidth={1.5} fill="none" isAnimationActive={true} />
-            <Area type="monotone" dataKey="crypto" stroke="#fbc02d" strokeWidth={1.5} fill="none" isAnimationActive={true} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -610,7 +616,6 @@ function Sidebar({
     { id: "전체", label: "전체 자산" },
     { id: "개별주식", label: "개별주식" },
     { id: "개인연금", label: "개인연금" },
-    { id: "암호화폐", label: "암호화폐" },
   ];
   return (
     <aside
@@ -656,15 +661,11 @@ function MobileHeader({
   activeTab,
   onTabChange,
   onRefetch,
-  onUpdateCrypto,
-  updatingCrypto,
   refreshing,
 }: {
   activeTab: string;
   onTabChange: (t: string) => void;
   onRefetch: () => void;
-  onUpdateCrypto: () => Promise<void>;
-  updatingCrypto: boolean;
   refreshing: boolean;
 }) {
   const { theme, setTheme } = useTheme();
@@ -1364,62 +1365,9 @@ function AccountsOverview({
   );
 }
 
-// ── 거래소 암호화폐 섹션 ─────────────────────────────────
-function ExchangeSection({ group }: { group: ExchangeGroup }) {
-  return (
-    <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] overflow-hidden mb-4">
-      <div className="px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a] flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          {group.exchange}
-          <span className="ml-1.5 text-gray-400 font-normal">({group.items.length}종목)</span>
-        </span>
-        {group.cash > 0 && (
-          <span className="text-xs text-gray-400">현금 {formatKRW(group.cash)}</span>
-        )}
-      </div>
-
-      {/* 모바일 */}
-      <div className="md:hidden">
-        {group.items.map((item, idx) => (
-          <AssetCard key={`${group.exchange}-${idx}`} item={item} />
-        ))}
-        {group.items.length === 0 && (
-          <p className="py-8 text-center text-sm text-gray-400">보유 종목 없음</p>
-        )}
-      </div>
-
-      {/* 데스크톱 */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead>
-            <tr className="border-b border-[#e0e0e0] dark:border-[#2a3a4a]">
-              {["종목", "수량", "평균매입가", "현재가", "현재가치", "평가손익", "수익률"].map((h) => (
-                <th key={h} className="py-3 px-4 text-xs font-semibold text-gray-500 text-right first:text-left">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {group.items.map((item, idx) => (
-              <AssetRow key={`${group.exchange}-${idx}`} item={item} editable={false} />
-            ))}
-            {group.items.length === 0 && (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-sm text-gray-400">보유 종목 없음</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 // ── 메인 페이지 ─────────────────────────────────────────
 export default function DashboardPage() {
   const { data, loading, error, refreshing, refetch } = useAssets();
-  const { data: cryptoData, loading: cryptoLoading, error: cryptoError, refetch: cryptoRefetch } = useCrypto();
   const [activeTab, setActiveTab] = useState<string>("전체");
   const [itemOverrides, setItemOverrides] = useState<Record<string, Partial<AssetItem>>>({});
   const [cashOverrides, setCashOverrides] = useState<Record<string, number>>({});
@@ -1427,27 +1375,6 @@ export default function DashboardPage() {
   const [addModalAccount, setAddModalAccount] = useState<AccountGroup | "new" | null>(null);
   const [profitLogs, setProfitLogs] = useState<DailyLogItem[]>([]);
   const [savingProfit, setSavingProfit] = useState(false);
-  const [updatingCrypto, setUpdatingCrypto] = useState(false);
-
-  async function updateCryptoLogTotal() {
-    try {
-      setUpdatingCrypto(true);
-      const res = await fetch("/api/daily-snapshot");
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`API 오류: ${res.status} ${body}`);
-      }
-      const data = await res.json();
-      console.log("암호화폐 업데이트 완료:", data);
-      await new Promise((r) => setTimeout(r, 500));
-      // 페이지 새로고침 (암호화폐 데이터만 업데이트되었으므로)
-      window.location.reload();
-    } catch (err) {
-      console.error("암호화폐 업데이트 에러:", err);
-      alert(err instanceof Error ? err.message : "오류 발생");
-      setUpdatingCrypto(false);
-    }
-  }
 
   async function saveItem(item: AssetItem, field: "quantity" | "avgPrice", value: number) {
     const res = await fetch("/api/assets/item", {
@@ -1500,13 +1427,10 @@ export default function DashboardPage() {
         const res = await fetch("/api/profits");
         if (res.ok) {
           const json = (await res.json()) as { data: DailyLogItem[] };
-          console.log("수익 데이터 로드:", json.data);
           setProfitLogs(json.data);
-        } else {
-          console.error("수익 데이터 로드 실패:", res.status, res.statusText);
         }
       } catch (err) {
-        console.error("수익 데이터 로드 에러:", err);
+        // 수익 데이터 로드 실패 무시
       }
     })();
   }, []);
@@ -1516,6 +1440,11 @@ export default function DashboardPage() {
     setSavingProfit(true);
     try {
       const summary = data.summary;
+      const portfolioGroups = summary.groups.filter((g) => g.category !== "암호화폐");
+      const portfolioInvest = portfolioGroups.reduce((s, g) => s + g.totalInvest, 0);
+      const portfolioValue = portfolioGroups.reduce((s, g) => s + g.totalValue, 0);
+      const portfolioCash = portfolioGroups.reduce((s, g) => s + g.cash, 0);
+      const portfolioProfit = portfolioGroups.reduce((s, g) => s + g.totalProfitLoss, 0);
       const totalGroup = summary.groups.find((g) => g.category === "개별주식");
       const pensionGroup = summary.groups.find((g) => g.category === "개인연금");
       const irpGroup = summary.groups.find((g) => g.category === "IRP");
@@ -1525,10 +1454,10 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           total: {
-            invest: summary.totalInvest,
-            value: summary.totalValue - summary.groups.reduce((s, g) => s + g.cash, 0),
-            profit: summary.totalProfitLoss,
-            total: summary.totalValue,
+            invest: portfolioInvest,
+            value: portfolioValue - portfolioCash,
+            profit: portfolioProfit,
+            total: portfolioValue,
           },
           stocks: totalGroup ? {
             invest: totalGroup.totalInvest,
@@ -1548,12 +1477,7 @@ export default function DashboardPage() {
             profit: irpGroup.totalProfitLoss,
             total: irpGroup.totalValue,
           } : { invest: 0, value: 0, profit: 0, total: 0 },
-          crypto: cryptoData ? {
-            invest: cryptoData.totalInvest,
-            value: cryptoData.totalValue - cryptoData.exchanges.reduce((s, e) => s + e.cash, 0),
-            profit: cryptoData.totalProfitLoss,
-            total: cryptoData.totalValue,
-          } : { invest: 0, value: 0, profit: 0, total: 0 },
+          crypto: { invest: 0, value: 0, profit: 0, total: 0 },
         }),
       });
 
@@ -1588,52 +1512,18 @@ export default function DashboardPage() {
 
   const summary = data?.summary;
 
-  const isCryptoTab = activeTab === "암호화폐";
-
-  // 전체 탭에서 암호화폐 그룹을 거래소 API 데이터로 추가/교체
   const adjustedGroups: AssetGroup[] = (() => {
     if (!summary) return [];
-
-    let groups = summary.groups.map((g) => {
-      if (g.category !== "암호화폐") return g;
-      if (!cryptoData) return g;
-      return {
-        category: "암호화폐" as AssetCategory,
-        items: cryptoData.exchanges.flatMap((e) => e.items),
-        cash: cryptoData.exchanges.reduce((s, e) => s + e.cash, 0),
-        totalInvest: cryptoData.totalInvest,
-        totalValue: cryptoData.totalValue,
-        totalProfitLoss: cryptoData.totalProfitLoss,
-        returnRate: cryptoData.returnRate,
-        accounts: [],
-      };
-    });
-
-    // 암호화폐 그룹이 없고 cryptoData가 있으면 추가
-    if (!groups.some((g) => g.category === "암호화폐") && cryptoData) {
-      groups.push({
-        category: "암호화폐" as AssetCategory,
-        items: cryptoData.exchanges.flatMap((e) => e.items),
-        cash: cryptoData.exchanges.reduce((s, e) => s + e.cash, 0),
-        totalInvest: cryptoData.totalInvest,
-        totalValue: cryptoData.totalValue,
-        totalProfitLoss: cryptoData.totalProfitLoss,
-        returnRate: cryptoData.returnRate,
-        accounts: [],
-      });
-    }
-
-    return groups;
+    return summary.groups.filter((g) => g.category !== "암호화폐");
   })();
 
-  const isEditable = activeTab !== "전체" && !isCryptoTab;
+  const isEditable = activeTab !== "전체";
 
   const displayItems: AssetItem[] = (() => {
-    if (isCryptoTab) return [];  // 암호화폐 탭은 ExchangeSection으로 별도 렌더링
     if (!summary) return [];
     if (activeTab === "전체") {
       return adjustedGroups
-        .filter((g) => g.category !== "개별주식" && g.category !== "암호화폐")
+        .filter((g) => g.category !== "개별주식")
         .flatMap((g) => g.items)
         .sort((a, b) => b.returnRate - a.returnRate);
     }
@@ -1658,14 +1548,6 @@ export default function DashboardPage() {
   })();
 
   const tabSummary = (() => {
-    if (isCryptoTab && cryptoData) {
-      return {
-        totalInvest: cryptoData.totalInvest,
-        totalValue: cryptoData.totalValue,
-        totalProfitLoss: cryptoData.totalProfitLoss,
-        returnRate: cryptoData.returnRate,
-      };
-    }
     if (!summary) return null;
     if (activeTab === "전체") {
       const totalInvest = adjustedGroups.reduce((s, g) => s + g.totalInvest, 0);
@@ -1684,9 +1566,9 @@ export default function DashboardPage() {
     };
   })();
 
-  // 카테고리 탭에서 섹터별 그룹핑 (전체·암호화폐 탭 제외)
+  // 카테고리 탭에서 섹터별 그룹핑
   const sectorGroups: { sector: string; items: AssetItem[]; totalValue: number; totalProfitLoss: number; returnRate: number }[] | null = (() => {
-    if (activeTab === "전체" || isCryptoTab || loading) return null;
+    if (activeTab === "전체" || loading) return null;
     if (!displayItems.some((i) => i.sector)) return null;
     const map: Record<string, AssetItem[]> = {};
     for (const item of displayItems) {
@@ -1707,7 +1589,7 @@ export default function DashboardPage() {
 
   // 계좌별 그룹핑 (개별주식·개인연금·IRP, 계좌 정보 있을 때)
   const accountGroups: { account: AccountGroup; items: AssetItem[] }[] | null = (() => {
-    if (activeTab === "전체" || isCryptoTab || loading) return null;
+    if (activeTab === "전체" || loading) return null;
     const group = summary?.groups.find((g) => g.category === (activeTab as AssetCategory));
     if (!group || group.accounts.length === 0) return null;
     return group.accounts.map((acct) => {
@@ -1733,7 +1615,7 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refetch} onUpdateCrypto={updateCryptoLogTotal} updatingCrypto={updatingCrypto} refreshing={refreshing} />
+      <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refetch} refreshing={refreshing} />
 
       <main className="flex-1 overflow-auto pt-[88px] md:pt-0 md:px-8 md:py-8 md:ml-56">
         {/* 데스크톱 헤더 */}
@@ -1802,64 +1684,8 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* 암호화폐 탭: 현금 현황 + 거래소별 섹션 */}
-        {isCryptoTab && (
-          <div className="mx-4 md:mx-0">
-            {cryptoError && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                거래소 연결 오류: {cryptoError}
-              </div>
-            )}
-            {cryptoLoading ? (
-              <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] p-8 text-center text-sm text-gray-400 animate-pulse">
-                거래소 데이터 불러오는 중...
-              </div>
-            ) : cryptoData ? (
-              <>
-                {/* 거래소별 현황 */}
-                {cryptoData.exchanges.length > 0 && (
-                  <div className="mb-4 rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                        계좌별 현황
-                      </h3>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-gray-400">전체 현금</span>
-                        <span className="text-sm font-bold text-gray-800 dark:text-white">
-                          {formatKRW(cryptoData.exchanges.reduce((s, e) => s + e.cash, 0))}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {cryptoData.exchanges.map((ex) => (
-                        <div key={ex.exchange} className="rounded-lg border border-[#e8e8e8] dark:border-[#2a3a4a] p-3 bg-[#f8f9fc] dark:bg-[#0f1923]">
-                          <p className="text-xs font-bold text-[#3d47cf] mb-2">{ex.exchange}</p>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">{formatKRW(ex.totalValue)}</p>
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-xs text-gray-400">원금 {formatKRW(ex.totalInvest)}</span>
-                            <RateBadge rate={ex.returnRate} />
-                          </div>
-                          {ex.cash > 0 && (
-                            <div className="mt-2 pt-2 border-t border-[#e8e8e8] dark:border-[#2a3a4a] flex items-center justify-between">
-                              <span className="text-xs text-gray-400">현금</span>
-                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{formatKRW(ex.cash)}</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {cryptoData.exchanges.map((group) => (
-                  <ExchangeSection key={group.exchange} group={group} />
-                ))}
-              </>
-            ) : null}
-          </div>
-        )}
-
         {/* 계좌별 현황 (개별주식, 개인연금, IRP) */}
-        {!isCryptoTab && activeTab !== "전체" && (() => {
+        {activeTab !== "전체" && (() => {
           const group = summary?.groups.find((g) => g.category === activeTab);
           if (!group) return null;
           return (
@@ -1899,20 +1725,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 암호화폐 탭만: 암호화폐 거래소 현황 */}
-        {isCryptoTab && cryptoData && cryptoData.exchanges.length > 0 && (
-          <div className="mx-4 md:mx-0 mb-6">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 md:px-0 mb-3">
-              암호화폐 거래소
-            </h2>
-            {cryptoData.exchanges.map((exchange) => (
-              <ExchangeSection key={exchange.exchange} group={exchange} />
-            ))}
-          </div>
-        )}
-
-        {/* 자산 목록 (암호화폐, 전체 탭 제외) */}
-        {!isCryptoTab && activeTab !== "전체" && <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] overflow-hidden mx-4 md:mx-0 mb-6">
+        {/* 자산 목록 (전체 탭 제외) */}
+        {activeTab !== "전체" && <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] overflow-hidden mx-4 md:mx-0 mb-6">
           {/* 섹션 제목 */}
           <div className="px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -2109,13 +1923,11 @@ export default function DashboardPage() {
           </div>
         </div>}
 
-        {/* AI 분석 패널 (개별주식, 개인연금, IRP, 암호화폐 탭) */}
-        {(activeTab === "개별주식" || activeTab === "개인연금" || activeTab === "IRP" || activeTab === "암호화폐") && summary && (
+        {/* AI 분석 패널 (개별주식, 개인연금, IRP 탭) */}
+        {(activeTab === "개별주식" || activeTab === "개인연금" || activeTab === "IRP") && summary && (
           (() => {
             const categoryKey = activeTab as AssetCategory;
-            const group = activeTab === "암호화폐"
-              ? adjustedGroups.find((g) => g.category === categoryKey)
-              : summary.groups.find((g) => g.category === categoryKey);
+            const group = summary.groups.find((g) => g.category === categoryKey);
             if (!group) return null;
             return (
               <PortfolioAnalysisPanel

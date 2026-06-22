@@ -1,16 +1,44 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { createSupabaseServer } from "@/lib/supabase-server";
-import type { AssetSummary } from "@/lib/types";
+import type { AccountGroup, AssetCategory, AssetGroup, AssetItem, AssetSummary } from "@/lib/types";
 
 export const revalidate = 0;
+
+interface AssetRow {
+  id: number;
+  asset_type: string;
+  account_name?: string | null;
+  code?: string | null;
+  name: string;
+  quantity: number;
+  avg_price: number;
+}
+
+interface CashRow {
+  account_name?: string | null;
+  amount?: number | null;
+}
+
+interface PriceRow {
+  code?: string | null;
+  price?: number | null;
+}
+
+function toAssetCategory(assetType: string): AssetCategory {
+  if (assetType === "개별주식" || assetType === "개인연금" || assetType === "IRP") {
+    return assetType;
+  }
+  return "개인연금";
+}
 
 async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSummary> {
   const { data: assets, error } = await supabase
     .from("assets")
     .select("*")
     .eq("is_cash", false)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .neq("asset_type", "암호화폐");
 
   const { data: cashData } = await supabase
     .from("cash")
@@ -24,7 +52,7 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
 
   const cashByAccount: Record<string, number> = {};
   let totalCash = 0;
-  (cashData || []).forEach((record: any) => {
+  ((cashData || []) as CashRow[]).forEach((record) => {
     const amount = record.amount || 0;
     const accountName = normalizeAccountName(record.account_name || "");
     totalCash += amount;
@@ -33,24 +61,25 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
     }
   });
 
-  const codes = (assets || []).map((a) => a.code).filter((c) => c);
+  const assetRows = (assets || []) as AssetRow[];
+  const assetById = new Map(assetRows.map((asset) => [asset.id, asset]));
 
   const { data: pricesData } = await supabase
     .from("prices")
     .select("code, price");
 
   const prices: Record<string, number> = {};
-  (pricesData || []).forEach((p) => {
+  ((pricesData || []) as PriceRow[]).forEach((p) => {
     if (p.code && typeof p.price === "number") {
       prices[p.code] = p.price;
     }
   });
 
   // 자산유형별로 그룹화
-  const groups: Record<string, any> = {};
+  const groups: Partial<Record<AssetCategory, AssetGroup>> = {};
 
-  (assets || []).forEach((asset) => {
-    let category = asset.asset_type;
+  assetRows.forEach((asset) => {
+    let category = toAssetCategory(asset.asset_type);
     if (category === "IRP") category = "개인연금";
 
     if (!groups[category]) {
@@ -63,15 +92,18 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
         totalProfitLoss: 0,
         returnRate: 0,
         accounts: [],
-      };
+      } satisfies AssetGroup;
     }
 
-    const currentPrice = prices[asset.code] ?? asset.avg_price;
+    const currentPrice = prices[asset.code ?? ""] ?? asset.avg_price;
     const investAmount = asset.quantity * asset.avg_price;
     const currentValue = asset.quantity * currentPrice;
     const profitLoss = currentValue - investAmount;
 
-    groups[category].items.push({
+    const group = groups[category];
+    if (!group) return;
+
+    group.items.push({
       id: asset.id,
       name: asset.name,
       quantity: asset.quantity,
@@ -83,16 +115,17 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
       returnRate: investAmount > 0 ? (profitLoss / investAmount) * 100 : 0,
     });
 
-    groups[category].totalInvest += investAmount;
-    groups[category].totalValue += currentValue;
+    group.totalInvest += investAmount;
+    group.totalValue += currentValue;
   });
 
   // 계좌별로 그룹화
-  Object.values(groups).forEach((group: any) => {
-    const accountMap: Record<string, any> = {};
+  Object.values(groups).forEach((group) => {
+    if (!group) return;
+    const accountMap: Record<string, AccountGroup> = {};
 
-    group.items.forEach((item: any) => {
-      const rawAccountName = (assets || []).find((a) => a.id === item.id)?.account_name || "Unknown";
+    group.items.forEach((item) => {
+      const rawAccountName = assetById.get(item.id ?? 0)?.account_name || "Unknown";
       const accountName = normalizeAccountName(rawAccountName);
 
       if (!accountMap[accountName]) {
@@ -104,6 +137,7 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
           totalProfitLoss: 0,
           returnRate: 0,
           items: [],
+          insertRowIndex: 0,
         };
       }
 
@@ -113,23 +147,23 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
       accountMap[accountName].totalProfitLoss += item.profitLoss;
     });
 
-    group.accounts = Object.values(accountMap).map((acc: any) => ({
+    group.accounts = Object.values(accountMap).map((acc) => ({
       ...acc,
       returnRate: acc.totalInvest > 0 ? (acc.totalProfitLoss / acc.totalInvest) * 100 : 0,
       totalValue: acc.totalValue + acc.cash,
     }));
 
     // 카테고리의 현금 합계 계산
-    group.cash = group.accounts.reduce((s: number, acc: any) => s + (acc.cash || 0), 0);
+    group.cash = group.accounts.reduce((s, acc) => s + (acc.cash || 0), 0);
     group.totalValue += group.cash;
 
     group.totalProfitLoss = group.totalValue - group.totalInvest;
     group.returnRate = group.totalInvest > 0 ? (group.totalProfitLoss / group.totalInvest) * 100 : 0;
   });
 
-  const groupArray = Object.values(groups);
-  const totalInvest = groupArray.reduce((sum, g: any) => sum + g.totalInvest, 0);
-  const totalValue = groupArray.reduce((sum, g: any) => sum + g.totalValue, 0) + totalCash;
+  const groupArray = Object.values(groups).filter((group): group is AssetGroup => Boolean(group));
+  const totalInvest = groupArray.reduce((sum, g) => sum + g.totalInvest, 0);
+  const totalValue = groupArray.reduce((sum, g) => sum + g.totalValue, 0) + totalCash;
   const totalProfitLoss = totalValue - totalInvest;
 
   return {
