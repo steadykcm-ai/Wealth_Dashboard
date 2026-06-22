@@ -132,7 +132,13 @@ export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
 
   // 카테고리별 계산
   const stocks = await calculateCategory("개별주식", prices, userId);
-  const pension = await calculateCategory("개인연금", prices, userId);
+  const personalPension = await calculateCategory("개인연금", prices, userId);
+  const irp = await calculateCategory("IRP", prices, userId);
+  const pension = {
+    invest: personalPension.invest + irp.invest,
+    value: personalPension.value + irp.value,
+    profit: personalPension.profit + irp.profit,
+  };
   const totalCash = await calculateCash(userId);
 
   const today = new Date().toISOString().split("T")[0];

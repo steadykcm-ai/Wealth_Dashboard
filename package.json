@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "fetch-stocks": "node scripts/fetch-stocks.mjs"
+    "fetch-stocks": "node scripts/fetch-stocks.mjs",
+    "backfill-daily-log:kis": "node scripts/backfill-daily-log-kis.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
