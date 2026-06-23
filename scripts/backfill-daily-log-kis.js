@@ -42,6 +42,12 @@ function toIsoDate(kisDate) {
   return `${kisDate.slice(0, 4)}-${kisDate.slice(4, 6)}-${kisDate.slice(6, 8)}`;
 }
 
+function normalizeKisCode(code) {
+  if (typeof code !== "string") return null;
+  const match = code.match(/\d{6}/);
+  return match ? match[0] : null;
+}
+
 async function getAccessToken() {
   const res = await fetch(`${BASE_URL}/oauth2/tokenP`, {
     method: "POST",
@@ -83,7 +89,7 @@ async function fetchDailyCloses(token, code, startDate, endDate) {
         authorization: `Bearer ${token}`,
         appkey: appKey,
         appsecret: appSecret,
-        "tr-id": "FHKST03010100",
+        "tr_id": "FHKST03010100",
         custtype: "P",
       },
     }
@@ -136,8 +142,9 @@ function summarizeAssets(assets, priceByCode, date, assetTypes) {
     .forEach((asset) => {
       const quantity = Number(asset.quantity || 0);
       const avgPrice = Number(asset.avg_price || 0);
-      const currentPrice = asset.code
-        ? getPriceOnOrBefore(priceByCode.get(asset.code) || new Map(), date, avgPrice)
+      const kisCode = normalizeKisCode(asset.code);
+      const currentPrice = kisCode
+        ? getPriceOnOrBefore(priceByCode.get(kisCode) || new Map(), date, avgPrice)
         : avgPrice;
 
       invest += quantity * avgPrice;
@@ -187,8 +194,8 @@ async function main() {
   const codes = Array.from(
     new Set(
       (assets || [])
-        .map((asset) => asset.code)
-        .filter((code) => typeof code === "string" && /^\d{6}$/.test(code))
+        .map((asset) => normalizeKisCode(asset.code))
+        .filter((code) => typeof code === "string")
     )
   );
 
@@ -236,8 +243,21 @@ async function main() {
     return;
   }
 
-  const { error } = await supabase.from("daily_log").upsert(rows, { onConflict: "date,user_id" });
-  if (error) throw error;
+  for (const row of rows) {
+    const { data: updatedRows, error: updateError } = await supabase
+      .from("daily_log")
+      .update(row)
+      .eq("date", row.date)
+      .eq("user_id", row.user_id)
+      .select("date");
+
+    if (updateError) throw updateError;
+
+    if (!updatedRows || updatedRows.length === 0) {
+      const { error: insertError } = await supabase.from("daily_log").insert(row);
+      if (insertError) throw insertError;
+    }
+  }
 
   console.log(`Updated ${rows.length} daily_log rows.`);
 }

@@ -1,6 +1,12 @@
 import YahooFinance from "yahoo-finance2";
+import { fetchKISPrice } from "@/lib/kis-client";
 
 const yahooFinance = new YahooFinance();
+
+function normalizeDomesticCode(code: string): string | null {
+  const match = code.match(/\d{6}/);
+  return match ? match[0] : null;
+}
 
 async function fetchYahooPrice(code: string): Promise<number | null> {
   try {
@@ -16,6 +22,9 @@ async function fetchYahooPrice(code: string): Promise<number | null> {
 }
 
 async function fetchDomesticPrice(code: string): Promise<number | null> {
+  const kisPrice = await fetchKISPrice(code);
+  if (kisPrice) return kisPrice;
+
   const kospiPrice = await fetchYahooPrice(`${code}.KS`);
   if (kospiPrice) return kospiPrice;
   return fetchYahooPrice(`${code}.KQ`);
@@ -34,8 +43,9 @@ export async function fetchStockPrices(
   const prices: Record<string, number> = {};
 
   const pricePromises = validCodes.map((code) => {
-    if (/^\d{6}$/.test(code)) {
-      return fetchDomesticPrice(code);
+    const domesticCode = normalizeDomesticCode(code);
+    if (domesticCode) {
+      return fetchDomesticPrice(domesticCode);
     }
     return fetchYahooPrice(code);
   });

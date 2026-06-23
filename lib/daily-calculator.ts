@@ -30,6 +30,16 @@ interface AssetCodeRow {
   code?: string | null;
 }
 
+interface AssetRow {
+  code?: string | null;
+  quantity?: number | null;
+  avg_price?: number | null;
+}
+
+interface CashRow {
+  amount?: number | null;
+}
+
 async function fetchLivePrices(userId: string): Promise<Record<string, number>> {
   const { data: assets, error } = await supabase
     .from("assets")
@@ -80,14 +90,14 @@ async function fetchCachedPrices(): Promise<Record<string, number>> {
 }
 
 async function calculateCategory(
-  assetType: string,
+  assetTypes: string[],
   prices: Record<string, number>,
   userId: string
 ): Promise<CategorySummary> {
   const { data: assets, error } = await supabase
     .from("assets")
-    .select("*")
-    .eq("asset_type", assetType)
+    .select("code, quantity, avg_price")
+    .in("asset_type", assetTypes)
     .eq("is_cash", false)
     .eq("user_id", userId);
 
@@ -98,13 +108,13 @@ async function calculateCategory(
   let invest = 0;
   let value = 0;
 
-  assets.forEach((item) => {
-    const itemInvest = item.quantity * item.avg_price;
-    const currentPrice = prices[item.code] || item.avg_price;
-    const itemValue = item.quantity * currentPrice;
+  (assets as AssetRow[]).forEach((item) => {
+    const quantity = Number(item.quantity || 0);
+    const avgPrice = Number(item.avg_price || 0);
+    const currentPrice = item.code ? prices[item.code] || avgPrice : avgPrice;
 
-    invest += itemInvest;
-    value += itemValue;
+    invest += quantity * avgPrice;
+    value += quantity * currentPrice;
   });
 
   return {
@@ -122,7 +132,10 @@ async function calculateCash(userId: string): Promise<number> {
 
   if (error || !cashRecords) return 0;
 
-  return cashRecords.reduce((sum, record) => sum + (record.amount || 0), 0);
+  return (cashRecords as CashRow[]).reduce(
+    (sum, record) => sum + Number(record.amount || 0),
+    0
+  );
 }
 
 export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
@@ -130,15 +143,8 @@ export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
   const cachedPrices = await fetchCachedPrices();
   const prices = { ...cachedPrices, ...livePrices };
 
-  // 카테고리별 계산
-  const stocks = await calculateCategory("개별주식", prices, userId);
-  const personalPension = await calculateCategory("개인연금", prices, userId);
-  const irp = await calculateCategory("IRP", prices, userId);
-  const pension = {
-    invest: personalPension.invest + irp.invest,
-    value: personalPension.value + irp.value,
-    profit: personalPension.profit + irp.profit,
-  };
+  const stocks = await calculateCategory(["개별주식"], prices, userId);
+  const pension = await calculateCategory(["개인연금", "IRP"], prices, userId);
   const totalCash = await calculateCash(userId);
 
   const today = new Date().toISOString().split("T")[0];
@@ -161,15 +167,23 @@ export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
 export async function saveDailyLog(userId: string): Promise<boolean> {
   try {
     const dailyData = await calculateDailyLog(userId);
-
     const dataToSave = { ...dailyData, user_id: userId };
 
-    const { error } = await supabase
+    const { data: updatedRows, error: updateError } = await supabase
       .from("daily_log")
-      .upsert([dataToSave]);
+      .update(dataToSave)
+      .eq("date", dailyData.date)
+      .eq("user_id", userId)
+      .select("date");
 
-    if (error) {
-      return false;
+    if (updateError) return false;
+
+    if (!updatedRows || updatedRows.length === 0) {
+      const { error: insertError } = await supabase
+        .from("daily_log")
+        .insert(dataToSave);
+
+      if (insertError) return false;
     }
 
     return true;

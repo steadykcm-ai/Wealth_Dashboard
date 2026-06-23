@@ -67,14 +67,16 @@ export async function fetchKISPrice(code: string): Promise<number | null> {
 
     if (!appKey || !appSecret) throw new Error("KIS credentials not set");
 
+    const token = await getAccessToken();
     const url = `${BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=${code}`;
 
     const response = await fetch(url, {
       method: "GET",
       headers: {
+        "authorization": `Bearer ${token}`,
         "appkey": appKey,
         "appsecret": appSecret,
-        "tr-id": "FHKST01010100",
+        "tr_id": "FHKST01010100",
         "custtype": "P",
       },
     });
