@@ -5,6 +5,15 @@ import type { DailyLogItem, CategorySnapshot } from "@/lib/types";
 
 export const revalidate = 0;
 
+function getKoreaDateString(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 export async function GET() {
   try {
     const supabaseServer = await createSupabaseServer();
@@ -61,7 +70,19 @@ export async function GET() {
         },
       }));
 
-    return NextResponse.json({ data: logs, error: null });
+    const latestLogDate = logs[0]?.date ?? null;
+    const today = getKoreaDateString();
+
+    return NextResponse.json({
+      data: logs,
+      meta: {
+        basis: "daily_close",
+        latestLogDate,
+        isTodayConfirmed: latestLogDate === today,
+        today,
+      },
+      error: null,
+    });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "데이터 조회 실패" },

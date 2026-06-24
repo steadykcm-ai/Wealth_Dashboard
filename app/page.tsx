@@ -8,6 +8,13 @@ import { useAssets } from "@/lib/useAssets";
 import { formatKRW, formatRate } from "@/lib/profit-calculator";
 import type { AssetCategory, AssetItem, AssetGroup, BreakdownItem, PortfolioBreakdown, AccountGroup, DailyLogItem } from "@/lib/types";
 
+type ProfitLogMeta = {
+  basis: "daily_close";
+  latestLogDate: string | null;
+  isTodayConfirmed: boolean;
+  today: string;
+};
+
 type ChartTooltipProps<TPayload extends object = Record<string, never>> = {
   active?: boolean;
   payload?: Array<{
@@ -211,7 +218,13 @@ function SmallDonutChart({ title, items }: { title: string; items: BreakdownItem
 }
 
 // ── 총자산 추이 차트 ──────────────────────────────────────
-function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
+function TotalAssetChart({
+  logs,
+  meta,
+}: {
+  logs: DailyLogItem[];
+  meta: ProfitLogMeta | null;
+}) {
   const { resolvedTheme } = useTheme();
   const [period, setPeriod] = useState<"1month" | "3month" | "all">("all");
 
@@ -274,6 +287,21 @@ function TotalAssetChart({ logs }: { logs: DailyLogItem[] }) {
           <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
             총자산 추이
           </h2>
+          <div className="mx-4 flex flex-1 flex-wrap items-center gap-2">
+            <span className="rounded-full bg-[#eef1ff] px-2 py-0.5 text-xs font-medium text-[#3d47cf] dark:bg-[#202a48]">
+              종가 확정 로그 기준
+            </span>
+            {meta?.latestLogDate && (
+              <span className="text-xs text-gray-400">
+                최신 로그 {new Date(meta.latestLogDate).toLocaleDateString("ko-KR")}
+              </span>
+            )}
+            {meta && !meta.isTodayConfirmed && (
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                오늘 확정 전
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => setPeriod("1month")}
@@ -1373,6 +1401,7 @@ export default function DashboardPage() {
   const [deletedKeys, setDeletedKeys] = useState<Set<string>>(new Set());
   const [addModalAccount, setAddModalAccount] = useState<AccountGroup | "new" | null>(null);
   const [profitLogs, setProfitLogs] = useState<DailyLogItem[]>([]);
+  const [profitLogMeta, setProfitLogMeta] = useState<ProfitLogMeta | null>(null);
   const [savingProfit, setSavingProfit] = useState(false);
 
   async function saveItem(item: AssetItem, field: "quantity" | "avgPrice", value: number) {
@@ -1425,8 +1454,9 @@ export default function DashboardPage() {
       try {
         const res = await fetch("/api/profits");
         if (res.ok) {
-          const json = (await res.json()) as { data: DailyLogItem[] };
+          const json = (await res.json()) as { data: DailyLogItem[]; meta?: ProfitLogMeta };
           setProfitLogs(json.data);
+          setProfitLogMeta(json.meta ?? null);
         }
       } catch (err) {
         // 수익 데이터 로드 실패 무시
@@ -1483,8 +1513,9 @@ export default function DashboardPage() {
       if (res.ok) {
         const newRes = await fetch("/api/profits");
         if (newRes.ok) {
-          const json = (await newRes.json()) as { data: DailyLogItem[] };
+          const json = (await newRes.json()) as { data: DailyLogItem[]; meta?: ProfitLogMeta };
           setProfitLogs(json.data);
+          setProfitLogMeta(json.meta ?? null);
         }
       }
     } catch {
@@ -1679,7 +1710,7 @@ export default function DashboardPage() {
               onTabChange={setActiveTab}
             />
             {/* 총자산 추이 차트 */}
-            <TotalAssetChart logs={profitLogs} />
+            <TotalAssetChart logs={profitLogs} meta={profitLogMeta} />
           </>
         )}
 

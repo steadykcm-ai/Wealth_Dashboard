@@ -17,6 +17,17 @@ interface KisPriceResponse {
   };
 }
 
+interface KisDailyPriceResponse {
+  output2?: Array<{
+    stck_bsop_date?: string;
+    stck_clpr?: string;
+  }>;
+}
+
+function toKisDate(date: string): string {
+  return date.replace(/-/g, "");
+}
+
 async function getAccessToken(): Promise<string> {
   const now = Date.now();
   if (cachedToken && tokenExpireTime > now) {
@@ -117,6 +128,54 @@ export async function fetchKISPrice(code: string): Promise<number | null> {
 
     return null;
   } catch (err: unknown) {
+    return null;
+  }
+}
+
+export async function fetchKISDailyClose(
+  code: string,
+  date: string
+): Promise<number | null> {
+  try {
+    const appKey = process.env.KIS_APP_KEY;
+    const appSecret = process.env.KIS_APP_SECRET;
+
+    if (!appKey || !appSecret) throw new Error("KIS credentials not set");
+
+    const token = await getAccessToken();
+    const params = new URLSearchParams({
+      FID_COND_MRKT_DIV_CODE: "J",
+      FID_INPUT_ISCD: code,
+      FID_INPUT_DATE_1: toKisDate(date),
+      FID_INPUT_DATE_2: toKisDate(date),
+      FID_PERIOD_DIV_CODE: "D",
+      FID_ORG_ADJ_PRC: "0",
+    });
+
+    const response = await fetch(
+      `${BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice?${params.toString()}`,
+      {
+        method: "GET",
+        headers: {
+          "authorization": `Bearer ${token}`,
+          "appkey": appKey,
+          "appsecret": appSecret,
+          "tr_id": "FHKST03010100",
+          "custtype": "P",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as KisDailyPriceResponse;
+    const row = data.output2?.find((item) => item.stck_bsop_date === toKisDate(date));
+    const close = Number(row?.stck_clpr);
+
+    return Number.isFinite(close) && close > 0 ? close : null;
+  } catch {
     return null;
   }
 }

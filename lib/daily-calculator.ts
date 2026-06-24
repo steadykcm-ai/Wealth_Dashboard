@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { fetchStockPrices } from "@/lib/price-fetcher";
+import { fetchKISDailyClose } from "@/lib/kis-client";
 
 interface CategorySummary {
   invest: number;
@@ -40,7 +40,42 @@ interface CashRow {
   amount?: number | null;
 }
 
-async function fetchLivePrices(userId: string): Promise<Record<string, number>> {
+function getKoreaDateString(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function normalizeDomesticCode(code: string | null | undefined): string | null {
+  if (!code) return null;
+  const match = code.match(/\d{6}/);
+  return match ? match[0] : null;
+}
+
+async function fetchCachedPrices(): Promise<Record<string, number>> {
+  const { data: priceRows, error } = await supabase
+    .from("prices")
+    .select("code, price");
+
+  if (error || !priceRows) return {};
+
+  const prices: Record<string, number> = {};
+  (priceRows as PriceRow[]).forEach((row) => {
+    if (row.code && typeof row.price === "number" && row.price > 0) {
+      prices[row.code] = row.price;
+    }
+  });
+
+  return prices;
+}
+
+async function fetchClosingPrices(
+  userId: string,
+  date: string
+): Promise<Record<string, number>> {
   const { data: assets, error } = await supabase
     .from("assets")
     .select("code")
@@ -58,31 +93,21 @@ async function fetchLivePrices(userId: string): Promise<Record<string, number>> 
     )
   );
 
-  const prices = await fetchStockPrices(codes);
-  const priceRecords = Object.entries(prices).map(([code, price]) => ({
-    code,
-    price,
-    updated_at: new Date().toISOString(),
-  }));
+  const entries = await Promise.all(
+    codes.map(async (code) => {
+      const domesticCode = normalizeDomesticCode(code);
+      if (!domesticCode) return null;
 
-  if (priceRecords.length > 0) {
-    await supabase.from("prices").upsert(priceRecords, { onConflict: "code" });
-  }
-
-  return prices;
-}
-
-async function fetchCachedPrices(): Promise<Record<string, number>> {
-  const { data: priceRows, error } = await supabase
-    .from("prices")
-    .select("code, price");
-
-  if (error || !priceRows) return {};
+      const close = await fetchKISDailyClose(domesticCode, date);
+      return close ? ([code, close] as const) : null;
+    })
+  );
 
   const prices: Record<string, number> = {};
-  (priceRows as PriceRow[]).forEach((row) => {
-    if (row.code && typeof row.price === "number" && row.price > 0) {
-      prices[row.code] = row.price;
+  entries.forEach((entry) => {
+    if (entry) {
+      const [code, price] = entry;
+      prices[code] = price;
     }
   });
 
@@ -139,15 +164,14 @@ async function calculateCash(userId: string): Promise<number> {
 }
 
 export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
-  const livePrices = await fetchLivePrices(userId);
+  const today = getKoreaDateString();
+  const closingPrices = await fetchClosingPrices(userId, today);
   const cachedPrices = await fetchCachedPrices();
-  const prices = { ...cachedPrices, ...livePrices };
+  const prices = { ...cachedPrices, ...closingPrices };
 
   const stocks = await calculateCategory(["개별주식"], prices, userId);
   const pension = await calculateCategory(["개인연금", "IRP"], prices, userId);
   const totalCash = await calculateCash(userId);
-
-  const today = new Date().toISOString().split("T")[0];
 
   return {
     date: today,
