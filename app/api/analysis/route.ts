@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { AssetGroup, DailyLogItem, AssetItem, AccountGroup } from "@/lib/types";
+import type {
+  AccountGroup,
+  AssetGroup,
+  AssetItem,
+  DailyLogItem,
+} from "@/lib/types";
 import { formatKRW, formatRate } from "@/lib/profit-calculator";
 
 export const runtime = "nodejs";
@@ -62,7 +67,7 @@ export async function POST(req: NextRequest) {
           ],
           generationConfig: {
             maxOutputTokens: 1400,
-            temperature: 0.3,
+            temperature: 0.2,
           },
         }),
       }
@@ -122,8 +127,16 @@ function buildAnalysisPrompt(
     .join("\n");
 
   return `당신은 개인 투자 포트폴리오를 점검하는 분석 도우미입니다.
-아래 데이터는 전체 원장을 모두 보낸 것이 아니라, 토큰 절약을 위해 요약한 핵심 데이터입니다.
-정확한 투자 조언이 아니라 리스크 점검과 다음 액션 후보를 제안해주세요.
+아래 데이터는 전체 원장이 아니라 토큰 절약을 위해 요약한 핵심 데이터입니다.
+투자 자문, 매수/매도 지시, 수익 보장 표현을 하지 마세요.
+사용자가 스스로 판단할 수 있도록 리스크, 쏠림, 확인할 질문을 정리하세요.
+
+## 표현 규칙
+- "매수하세요", "매도하세요", "교체하세요", "축소하세요", "확대하세요"처럼 행동을 지시하지 마세요.
+- "검토할 수 있습니다", "점검이 필요합니다", "관찰 후보입니다", "비중 확인 대상입니다"처럼 보수적으로 표현하세요.
+- 특정 종목을 추천 종목처럼 포장하지 말고, 데이터상 비중/손익/변동성 관찰 대상으로만 언급하세요.
+- 외부 시황, 재무제표, 실시간 뉴스는 제공되지 않았으므로 추정하지 마세요.
+- 답변 첫머리에 "투자 조언이 아닌 포트폴리오 점검용 요약입니다."라고 적으세요.
 
 ## 전체 요약
 - 카테고리: ${category}
@@ -151,12 +164,12 @@ ${formatItemLines(topLosers, totalValue)}
 ${weeklyTrend || "- 추이 데이터 없음"}
 
 ## 답변 형식
-### 1. 현재 상태 한 줄 진단
+### 1. 현재 상태 한 줄 점검
 ### 2. 집중 리스크
-### 3. 리밸런싱 후보
+### 3. 비중 점검 후보
 ### 4. 다음 확인 질문 3개
 
-한국어로 간결하게 작성하고, 매수/매도 단정 대신 "검토 후보"로 표현하세요.`;
+한국어로 간결하게 작성하세요. 각 항목은 짧은 bullet 위주로 쓰고, 결론을 단정하지 마세요.`;
 }
 
 function sortItems(
