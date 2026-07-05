@@ -981,14 +981,8 @@ function AssetCard({
 }) {
   const canEdit = editable && !!item.id && !!onSave;
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
-      <div className="flex items-center gap-3 min-w-0">
-        <span
-          className="flex items-center justify-center w-9 h-9 rounded-full text-xs font-bold text-white shrink-0"
-          style={{ background: "#3d47cf" }}
-        >
-          {initials(item.name)}
-        </span>
+    <div className="px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{item.name}</p>
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
@@ -1013,19 +1007,34 @@ function AssetCard({
               <span>{formatKRW(item.avgPrice)}</span>
             )}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-            <span>현재가 {formatKRW(item.currentPrice)}</span>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-base font-bold text-gray-900 dark:text-white leading-tight">
+            {formatKRW(item.currentPrice)}
+          </div>
+          <div className="mt-1 flex justify-end">
             <TodayChangeBadge quote={todayQuote} />
           </div>
         </div>
       </div>
-      <div className="text-right shrink-0 ml-3">
-        <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</p>
-        <div className="flex items-center justify-end gap-1.5 mt-0.5">
-          <span className="text-xs font-medium" style={{ color: rateColor(item.profitLoss) }}>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-gray-400">평가금액</span>
+          <span className="font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-gray-400">평가손익</span>
+          <span className="font-semibold" style={{ color: rateColor(item.profitLoss) }}>
             {item.profitLoss >= 0 ? "+" : ""}{formatKRW(item.profitLoss)}
           </span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-gray-400">수익률</span>
           <RateBadge rate={item.returnRate} />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-gray-400">보유수량</span>
+          <span className="font-medium text-gray-700 dark:text-gray-200">{item.quantity.toLocaleString("ko-KR")}주</span>
         </div>
       </div>
     </div>
