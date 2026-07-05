@@ -14,7 +14,15 @@ interface KisTokenResponse {
 interface KisPriceResponse {
   output?: {
     stck_prpr?: string;
+    prdy_vrss?: string;
+    prdy_ctrt?: string;
   };
+}
+
+export interface KisQuote {
+  price: number;
+  changeAmount: number;
+  changeRate: number;
 }
 
 interface KisDailyPriceResponse {
@@ -91,6 +99,11 @@ async function requestAccessToken(): Promise<string> {
 }
 
 export async function fetchKISPrice(code: string): Promise<number | null> {
+  const quote = await fetchKISQuote(code);
+  return quote?.price ?? null;
+}
+
+export async function fetchKISQuote(code: string): Promise<KisQuote | null> {
   try {
     const appKey = process.env.KIS_APP_KEY;
     const appSecret = process.env.KIS_APP_SECRET;
@@ -121,9 +134,15 @@ export async function fetchKISPrice(code: string): Promise<number | null> {
     if (!rawPrice) return null;
 
     const price = parseFloat(rawPrice);
+    const changeAmount = Number(data.output?.prdy_vrss ?? 0);
+    const changeRate = Number(data.output?.prdy_ctrt ?? 0);
 
     if (!isNaN(price) && price > 0) {
-      return price;
+      return {
+        price,
+        changeAmount: Number.isFinite(changeAmount) ? changeAmount : 0,
+        changeRate: Number.isFinite(changeRate) ? changeRate : 0,
+      };
     }
 
     return null;

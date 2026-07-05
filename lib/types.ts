@@ -1,10 +1,13 @@
 export interface AssetItem {
   id?: number;
+  code?: string;
   name: string;
   quantity: number;
   avgPrice: number;
   currentPrice: number;
   priceUpdatedAt?: string;
+  todayChangeRate?: number;
+  todayChangeAmount?: number;
   investAmount: number;
   currentValue: number;
   profitLoss: number;

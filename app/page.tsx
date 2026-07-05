@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -24,6 +24,12 @@ type ChartTooltipProps<TPayload extends object = Record<string, never>> = {
     payload?: TPayload;
   }>;
 };
+
+interface TodayQuote {
+  price: number;
+  changeAmount: number;
+  changeRate: number;
+}
 
 // 종목 데이터: [종목명, GOOGLEFINANCE 티커] 형식
 type StockEntry = [string, string];
@@ -616,6 +622,21 @@ function RateBadge({ rate }: { rate: number }) {
   );
 }
 
+function TodayChangeBadge({ quote }: { quote?: TodayQuote }) {
+  if (!quote) return null;
+
+  const bg = quote.changeRate > 0 ? "#ffebee" : quote.changeRate < 0 ? "#e3f2fd" : "#f5f5f5";
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap"
+      style={{ color: rateColor(quote.changeRate), background: bg }}
+      title={`전일 대비 ${quote.changeAmount >= 0 ? "+" : ""}${formatKRW(quote.changeAmount)}`}
+    >
+      오늘 {formatRate(quote.changeRate)}
+    </span>
+  );
+}
+
 function SummaryCard({
   label,
   value,
@@ -879,11 +900,13 @@ function AssetRow({
   editable,
   onSave,
   onDelete,
+  todayQuote,
 }: {
   item: AssetItem;
   editable?: boolean;
   onSave?: (field: "quantity" | "avgPrice", value: number) => Promise<void>;
   onDelete?: () => Promise<void>;
+  todayQuote?: TodayQuote;
 }) {
   const canEdit = editable && !!item.id && !!onSave;
   return (
@@ -922,7 +945,12 @@ function AssetRow({
           formatKRW(item.avgPrice)
         )}
       </td>
-      <td className="py-3 px-4 text-right text-sm text-gray-500">{formatKRW(item.currentPrice)}</td>
+      <td className="py-3 px-4 text-right text-sm text-gray-500">
+        <div className="flex items-center justify-end gap-1.5">
+          <span>{formatKRW(item.currentPrice)}</span>
+          <TodayChangeBadge quote={todayQuote} />
+        </div>
+      </td>
       <td className="py-3 px-4 text-right text-sm font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</td>
       <td
         className="py-3 px-4 text-right text-sm font-medium"
@@ -943,11 +971,13 @@ function AssetCard({
   editable,
   onSave,
   onDelete,
+  todayQuote,
 }: {
   item: AssetItem;
   editable?: boolean;
   onSave?: (field: "quantity" | "avgPrice", value: number) => Promise<void>;
   onDelete?: () => Promise<void>;
+  todayQuote?: TodayQuote;
 }) {
   const canEdit = editable && !!item.id && !!onSave;
   return (
@@ -985,6 +1015,7 @@ function AssetCard({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
             <span>현재가 {formatKRW(item.currentPrice)}</span>
+            <TodayChangeBadge quote={todayQuote} />
           </div>
         </div>
       </div>
@@ -1473,6 +1504,8 @@ export default function DashboardPage() {
   const [profitLogs, setProfitLogs] = useState<DailyLogItem[]>([]);
   const [profitLogMeta, setProfitLogMeta] = useState<ProfitLogMeta | null>(null);
   const [savingProfit, setSavingProfit] = useState(false);
+  const [todayQuotes, setTodayQuotes] = useState<Record<string, TodayQuote>>({});
+  const [todayQuotesLoading, setTodayQuotesLoading] = useState(false);
 
   async function saveItem(item: AssetItem, field: "quantity" | "avgPrice", value: number) {
     const res = await fetch("/api/assets/item", {
@@ -1672,6 +1705,57 @@ export default function DashboardPage() {
       priceUpdatedAt: latestPriceUpdatedAt(g.items),
     };
   })();
+  const todayQuoteCodes = useMemo(
+    () =>
+      activeTab === "전체" || loading
+        ? []
+        : Array.from(
+            new Set(displayItems.map((item) => item.code).filter((code): code is string => Boolean(code)))
+          ),
+    [activeTab, displayItems, loading]
+  );
+  const todayQuoteCodesKey = todayQuoteCodes.join("|");
+
+  useEffect(() => {
+    const codes = todayQuoteCodesKey ? todayQuoteCodesKey.split("|") : [];
+    if (codes.length === 0) {
+      setTodayQuotes({});
+      setTodayQuotesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setTodayQuotesLoading(true);
+
+    fetch("/api/market-today", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codes }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return (await res.json()) as { quotes?: Record<string, TodayQuote> };
+      })
+      .then((json) => {
+        if (!cancelled) {
+          setTodayQuotes(json.quotes ?? {});
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTodayQuotes({});
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setTodayQuotesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [todayQuoteCodesKey]);
 
   // 카테고리 탭에서 섹터별 그룹핑
   const sectorGroups: { sector: string; items: AssetItem[]; totalValue: number; totalProfitLoss: number; returnRate: number }[] | null = (() => {
@@ -1848,6 +1932,7 @@ export default function DashboardPage() {
             {!loading && tabSummary?.priceUpdatedAt && (
               <span className="shrink-0 text-[11px] font-medium text-gray-400">
                 현재가 기준 {formatPriceUpdatedAt(tabSummary.priceUpdatedAt)}
+                {todayQuotesLoading ? " · 등락률 조회 중" : ""}
               </span>
             )}
           </div>
@@ -1876,6 +1961,7 @@ export default function DashboardPage() {
                       editable={isEditable}
                       onSave={(field, value) => saveItem(item, field, value)}
                       onDelete={() => deleteItem(item)}
+                      todayQuote={item.code ? todayQuotes[item.code] : undefined}
                     />
                   ))}
                   {isEditable && (
@@ -1911,6 +1997,7 @@ export default function DashboardPage() {
                       editable={isEditable}
                       onSave={(field, value) => saveItem(item, field, value)}
                       onDelete={() => deleteItem(item)}
+                      todayQuote={item.code ? todayQuotes[item.code] : undefined}
                     />
                   ))}
                 </div>
@@ -1925,6 +2012,7 @@ export default function DashboardPage() {
                   editable={isEditable}
                   onSave={(field, value) => saveItem(item, field, value)}
                   onDelete={() => deleteItem(item)}
+                  todayQuote={item.code ? todayQuotes[item.code] : undefined}
                 />
               ))
             )}
@@ -1978,6 +2066,7 @@ export default function DashboardPage() {
                           editable={isEditable}
                           onSave={(field, value) => saveItem(item, field, value)}
                           onDelete={() => deleteItem(item)}
+                          todayQuote={item.code ? todayQuotes[item.code] : undefined}
                         />
                       ))}
                       {isEditable && (
@@ -2026,6 +2115,7 @@ export default function DashboardPage() {
                           editable={isEditable}
                           onSave={(field, value) => saveItem(item, field, value)}
                           onDelete={() => deleteItem(item)}
+                          todayQuote={item.code ? todayQuotes[item.code] : undefined}
                         />
                       ))}
                     </>
@@ -2038,6 +2128,7 @@ export default function DashboardPage() {
                       editable={isEditable}
                       onSave={(field, value) => saveItem(item, field, value)}
                       onDelete={() => deleteItem(item)}
+                      todayQuote={item.code ? todayQuotes[item.code] : undefined}
                     />
                   ))
                 )}

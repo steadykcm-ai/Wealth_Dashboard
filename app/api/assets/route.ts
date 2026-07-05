@@ -115,6 +115,7 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
 
     group.items.push({
       id: asset.id,
+      code: asset.code || undefined,
       name: asset.name,
       quantity: asset.quantity,
       avgPrice: asset.avg_price,
