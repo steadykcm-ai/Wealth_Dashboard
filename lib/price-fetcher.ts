@@ -22,12 +22,13 @@ async function fetchYahooPrice(code: string): Promise<number | null> {
 }
 
 async function fetchDomesticPrice(code: string): Promise<number | null> {
-  const kisPrice = await fetchKISPrice(code);
-  if (kisPrice) return kisPrice;
+  return fetchKISPrice(code);
+}
 
-  const kospiPrice = await fetchYahooPrice(`${code}.KS`);
-  if (kospiPrice) return kospiPrice;
-  return fetchYahooPrice(`${code}.KQ`);
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 export async function fetchStockPrices(
@@ -41,21 +42,28 @@ export async function fetchStockPrices(
   }
 
   const prices: Record<string, number> = {};
+  const yahooRequests: Array<Promise<void>> = [];
 
-  const pricePromises = validCodes.map((code) => {
+  for (const code of validCodes) {
     const domesticCode = normalizeDomesticCode(code);
     if (domesticCode) {
-      return fetchDomesticPrice(domesticCode);
+      const price = await fetchDomesticPrice(domesticCode);
+      if (price) {
+        prices[code] = price;
+      }
+      await sleep(150);
+    } else {
+      yahooRequests.push(
+        fetchYahooPrice(code).then((price) => {
+          if (price) {
+            prices[code] = price;
+          }
+        })
+      );
     }
-    return fetchYahooPrice(code);
-  });
+  }
 
-  const results = await Promise.all(pricePromises);
-  results.forEach((price, index) => {
-    if (price) {
-      prices[validCodes[index]] = price;
-    }
-  });
+  await Promise.all(yahooRequests);
 
   return prices;
 }
