@@ -2013,6 +2013,7 @@ export default function DashboardPage() {
             if (!group) return null;
             return (
               <PortfolioAnalysisPanel
+                key={categoryKey}
                 group={group}
                 logs={profitLogs}
                 category={activeTab}
