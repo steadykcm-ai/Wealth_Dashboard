@@ -23,6 +23,12 @@ interface CashRow {
 interface PriceRow {
   code?: string | null;
   price?: number | null;
+  updated_at?: string | null;
+}
+
+interface PriceInfo {
+  price: number;
+  updatedAt?: string;
 }
 
 function toAssetCategory(assetType: string): AssetCategory {
@@ -66,12 +72,15 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
 
   const { data: pricesData } = await supabase
     .from("prices")
-    .select("code, price");
+    .select("code, price, updated_at");
 
-  const prices: Record<string, number> = {};
+  const prices: Record<string, PriceInfo> = {};
   ((pricesData || []) as PriceRow[]).forEach((p) => {
     if (p.code && typeof p.price === "number") {
-      prices[p.code] = p.price;
+      prices[p.code] = {
+        price: p.price,
+        updatedAt: p.updated_at || undefined,
+      };
     }
   });
 
@@ -95,7 +104,8 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
       } satisfies AssetGroup;
     }
 
-    const currentPrice = prices[asset.code ?? ""] ?? asset.avg_price;
+    const priceInfo = prices[asset.code ?? ""];
+    const currentPrice = priceInfo?.price ?? asset.avg_price;
     const investAmount = asset.quantity * asset.avg_price;
     const currentValue = asset.quantity * currentPrice;
     const profitLoss = currentValue - investAmount;
@@ -109,6 +119,7 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
       quantity: asset.quantity,
       avgPrice: asset.avg_price,
       currentPrice,
+      priceUpdatedAt: priceInfo?.updatedAt,
       investAmount,
       currentValue,
       profitLoss,
@@ -167,12 +178,17 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
   const ungroupedCash = Math.max(totalCash - groupedCash, 0);
   const totalValue = groupArray.reduce((sum, g) => sum + g.totalValue, 0) + ungroupedCash;
   const totalProfitLoss = totalValue - totalInvest;
+  const priceUpdatedAt = groupArray
+    .flatMap((group) => group.items.map((item) => item.priceUpdatedAt).filter(Boolean))
+    .sort()
+    .at(-1);
 
   return {
     totalInvest,
     totalValue,
     totalProfitLoss,
     returnRate: totalInvest > 0 ? (totalProfitLoss / totalInvest) * 100 : 0,
+    priceUpdatedAt,
     groups: groupArray,
   };
 }

@@ -47,6 +47,39 @@ function rateColor(rate: number): string {
   return "#9e9e9e";
 }
 
+function formatPriceUpdatedAt(updatedAt?: string): string | undefined {
+  if (!updatedAt) return undefined;
+  const date = new Date(updatedAt);
+  if (Number.isNaN(date.getTime())) return undefined;
+
+  const today = new Date();
+  const dateKey = date.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
+  const todayKey = today.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
+  const time = date.toLocaleTimeString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (dateKey === todayKey) {
+    return `오늘 ${time}`;
+  }
+
+  return date.toLocaleDateString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "numeric",
+    day: "numeric",
+  });
+}
+
+function latestPriceUpdatedAt(items: AssetItem[]): string | undefined {
+  return items
+    .map((item) => item.priceUpdatedAt)
+    .filter((updatedAt): updatedAt is string => Boolean(updatedAt))
+    .sort()
+    .at(-1);
+}
+
 const CATEGORY_COLORS: Record<AssetCategory, string> = {
   개별주식: "#3d47cf",
   개인연금: "#26a69a",
@@ -853,6 +886,7 @@ function AssetRow({
   onDelete?: () => Promise<void>;
 }) {
   const canEdit = editable && !!item.id && !!onSave;
+  const priceUpdatedAt = formatPriceUpdatedAt(item.priceUpdatedAt);
   return (
     <tr className="border-b border-[#f0f0f0] dark:border-[#2a3a4a] hover:bg-[#f8f9fc] dark:hover:bg-[#1e2c3a] transition-colors">
       <td className="py-3 px-4">
@@ -889,7 +923,12 @@ function AssetRow({
           formatKRW(item.avgPrice)
         )}
       </td>
-      <td className="py-3 px-4 text-right text-sm text-gray-500">{formatKRW(item.currentPrice)}</td>
+      <td className="py-3 px-4 text-right text-sm text-gray-500">
+        <div>{formatKRW(item.currentPrice)}</div>
+        {priceUpdatedAt && (
+          <div className="mt-0.5 text-[11px] text-gray-400">{priceUpdatedAt}</div>
+        )}
+      </td>
       <td className="py-3 px-4 text-right text-sm font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</td>
       <td
         className="py-3 px-4 text-right text-sm font-medium"
@@ -917,6 +956,7 @@ function AssetCard({
   onDelete?: () => Promise<void>;
 }) {
   const canEdit = editable && !!item.id && !!onSave;
+  const priceUpdatedAt = formatPriceUpdatedAt(item.priceUpdatedAt);
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
       <div className="flex items-center gap-3 min-w-0">
@@ -949,6 +989,10 @@ function AssetCard({
             ) : (
               <span>{formatKRW(item.avgPrice)}</span>
             )}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+            <span>현재가 {formatKRW(item.currentPrice)}</span>
+            {priceUpdatedAt && <span>기준 {priceUpdatedAt}</span>}
           </div>
         </div>
       </div>
@@ -1618,7 +1662,13 @@ export default function DashboardPage() {
       const totalValue = adjustedGroups.reduce((s, g) => s + g.totalValue, 0);
       const totalProfitLoss = adjustedGroups.reduce((s, g) => s + g.totalProfitLoss, 0);
       const returnRate = totalInvest > 0 ? (totalProfitLoss / totalInvest) * 100 : 0;
-      return { totalInvest, totalValue, totalProfitLoss, returnRate };
+      return {
+        totalInvest,
+        totalValue,
+        totalProfitLoss,
+        returnRate,
+        priceUpdatedAt: summary.priceUpdatedAt,
+      };
     }
     const g = summary.groups.find((g) => g.category === activeTab);
     if (!g) return null;
@@ -1627,6 +1677,7 @@ export default function DashboardPage() {
       totalValue: g.totalValue,
       totalProfitLoss: g.totalProfitLoss,
       returnRate: g.returnRate,
+      priceUpdatedAt: latestPriceUpdatedAt(g.items),
     };
   })();
 
