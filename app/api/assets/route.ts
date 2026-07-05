@@ -163,7 +163,9 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
 
   const groupArray = Object.values(groups).filter((group): group is AssetGroup => Boolean(group));
   const totalInvest = groupArray.reduce((sum, g) => sum + g.totalInvest, 0);
-  const totalValue = groupArray.reduce((sum, g) => sum + g.totalValue, 0) + totalCash;
+  const groupedCash = groupArray.reduce((sum, g) => sum + g.cash, 0);
+  const ungroupedCash = Math.max(totalCash - groupedCash, 0);
+  const totalValue = groupArray.reduce((sum, g) => sum + g.totalValue, 0) + ungroupedCash;
   const totalProfitLoss = totalValue - totalInvest;
 
   return {
