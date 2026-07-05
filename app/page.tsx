@@ -886,7 +886,6 @@ function AssetRow({
   onDelete?: () => Promise<void>;
 }) {
   const canEdit = editable && !!item.id && !!onSave;
-  const priceUpdatedAt = formatPriceUpdatedAt(item.priceUpdatedAt);
   return (
     <tr className="border-b border-[#f0f0f0] dark:border-[#2a3a4a] hover:bg-[#f8f9fc] dark:hover:bg-[#1e2c3a] transition-colors">
       <td className="py-3 px-4">
@@ -923,12 +922,7 @@ function AssetRow({
           formatKRW(item.avgPrice)
         )}
       </td>
-      <td className="py-3 px-4 text-right text-sm text-gray-500">
-        <div>{formatKRW(item.currentPrice)}</div>
-        {priceUpdatedAt && (
-          <div className="mt-0.5 text-[11px] text-gray-400">{priceUpdatedAt}</div>
-        )}
-      </td>
+      <td className="py-3 px-4 text-right text-sm text-gray-500">{formatKRW(item.currentPrice)}</td>
       <td className="py-3 px-4 text-right text-sm font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</td>
       <td
         className="py-3 px-4 text-right text-sm font-medium"
@@ -956,7 +950,6 @@ function AssetCard({
   onDelete?: () => Promise<void>;
 }) {
   const canEdit = editable && !!item.id && !!onSave;
-  const priceUpdatedAt = formatPriceUpdatedAt(item.priceUpdatedAt);
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
       <div className="flex items-center gap-3 min-w-0">
@@ -992,7 +985,6 @@ function AssetCard({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
             <span>현재가 {formatKRW(item.currentPrice)}</span>
-            {priceUpdatedAt && <span>기준 {priceUpdatedAt}</span>}
           </div>
         </div>
       </div>
@@ -1843,7 +1835,7 @@ export default function DashboardPage() {
         {/* 자산 목록 (전체 탭 제외) */}
         {activeTab !== "전체" && <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] overflow-hidden mx-4 md:mx-0 mb-6">
           {/* 섹션 제목 */}
-          <div className="px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {activeTab === "전체" ? "전체 종목" : `${activeTab} 종목`}
               {!loading && (() => {
@@ -1853,6 +1845,11 @@ export default function DashboardPage() {
                 return count > 0 ? <span className="ml-1.5 text-gray-400 font-normal">({count})</span> : null;
               })()}
             </span>
+            {!loading && tabSummary?.priceUpdatedAt && (
+              <span className="shrink-0 text-[11px] font-medium text-gray-400">
+                현재가 기준 {formatPriceUpdatedAt(tabSummary.priceUpdatedAt)}
+              </span>
+            )}
           </div>
 
           {/* 모바일: 카드 */}
