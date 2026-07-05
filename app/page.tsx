@@ -638,7 +638,8 @@ function Sidebar({
   activeTab: string;
   onTabChange: (t: string) => void;
 }) {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const items = [
     { id: "전체", label: "전체 자산" },
     { id: "개별주식", label: "개별주식" },
@@ -654,11 +655,12 @@ function Sidebar({
           Wealth<span style={{ color: "#3d47cf" }}>.</span>
         </span>
         <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          onClick={() => setTheme(isDark ? "light" : "dark")}
           className="text-gray-400 hover:text-white transition-colors"
-          title={theme === "dark" ? "라이트 모드" : "다크 모드"}
+          title={isDark ? "현재: 다크 모드. 라이트 모드로 전환" : "현재: 라이트 모드. 다크 모드로 전환"}
+          aria-label={isDark ? "현재 다크 모드, 라이트 모드로 전환" : "현재 라이트 모드, 다크 모드로 전환"}
         >
-          {theme === "dark" ? "☀️" : "🌙"}
+          {isDark ? "🌙" : "☀️"}
         </button>
       </div>
       <nav className="flex flex-col gap-1 flex-1">
@@ -695,7 +697,8 @@ function MobileHeader({
   onRefetch: () => void;
   refreshing: boolean;
 }) {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   async function handleLogout() {
     const { supabase } = await import("@/lib/supabase-browser");
@@ -713,11 +716,12 @@ function MobileHeader({
         </span>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onClick={() => setTheme(isDark ? "light" : "dark")}
             className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#2a3a4a]"
-            title={theme === "dark" ? "라이트 모드" : "다크 모드"}
+            title={isDark ? "현재: 다크 모드. 라이트 모드로 전환" : "현재: 라이트 모드. 다크 모드로 전환"}
+            aria-label={isDark ? "현재 다크 모드, 라이트 모드로 전환" : "현재 라이트 모드, 다크 모드로 전환"}
           >
-            {theme === "dark" ? "☀️" : "🌙"}
+            {isDark ? "🌙" : "☀️"}
           </button>
           <button
             onClick={onRefetch}
