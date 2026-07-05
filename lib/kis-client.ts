@@ -1,3 +1,5 @@
+import { readCachedKisToken, saveCachedKisToken } from "@/lib/kis-token-cache";
+
 const BASE_URL = "https://openapi.koreainvestment.com:9443";
 const DEFAULT_TOKEN_EXPIRES_IN_SECONDS = 24 * 60 * 60;
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
@@ -39,6 +41,13 @@ function toKisDate(date: string): string {
 async function getAccessToken(): Promise<string> {
   const now = Date.now();
   if (cachedToken && tokenExpireTime > now) {
+    return cachedToken;
+  }
+
+  const storedToken = await readCachedKisToken(now);
+  if (storedToken) {
+    cachedToken = storedToken.accessToken;
+    tokenExpireTime = storedToken.expiresAtMs;
     return cachedToken;
   }
 
@@ -92,6 +101,7 @@ async function requestAccessToken(): Promise<string> {
     cachedToken = token;
     const expiresIn = data.expires_in || DEFAULT_TOKEN_EXPIRES_IN_SECONDS;
     tokenExpireTime = now + expiresIn * 1000 - TOKEN_EXPIRY_BUFFER_MS;
+    await saveCachedKisToken(cachedToken, tokenExpireTime);
     return cachedToken;
   } catch (err: unknown) {
     throw err;
