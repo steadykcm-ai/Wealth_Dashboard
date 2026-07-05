@@ -901,7 +901,18 @@ function AssetRow({
 }
 
 // ── 카드 행 (모바일) ─────────────────────────────────────
-function AssetCard({ item }: { item: AssetItem }) {
+function AssetCard({
+  item,
+  editable,
+  onSave,
+  onDelete,
+}: {
+  item: AssetItem;
+  editable?: boolean;
+  onSave?: (field: "quantity" | "avgPrice", value: number) => Promise<void>;
+  onDelete?: () => Promise<void>;
+}) {
+  const canEdit = editable && !!item.id && !!onSave;
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
       <div className="flex items-center gap-3 min-w-0">
@@ -913,9 +924,28 @@ function AssetCard({ item }: { item: AssetItem }) {
         </span>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{item.name}</p>
-          <p className="text-xs text-gray-400">
-            {item.quantity.toLocaleString("ko-KR")}주 · 매입 {formatKRW(item.avgPrice)}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
+            {canEdit ? (
+              <EditableCell
+                value={item.quantity}
+                display={item.quantity.toLocaleString("ko-KR")}
+                onSave={(v) => onSave!("quantity", v)}
+                onDelete={onDelete}
+              />
+            ) : (
+              <span>{item.quantity.toLocaleString("ko-KR")}</span>
+            )}
+            <span>주 · 매입</span>
+            {canEdit ? (
+              <EditableCell
+                value={item.avgPrice}
+                display={formatKRW(item.avgPrice)}
+                onSave={(v) => onSave!("avgPrice", v)}
+              />
+            ) : (
+              <span>{formatKRW(item.avgPrice)}</span>
+            )}
+          </div>
         </div>
       </div>
       <div className="text-right shrink-0 ml-3">
@@ -1788,7 +1818,13 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   {items.map((item, idx) => (
-                    <AssetCard key={`${account.name}-${idx}`} item={item} />
+                    <AssetCard
+                      key={`${account.name}-${idx}`}
+                      item={item}
+                      editable={isEditable}
+                      onSave={(field, value) => saveItem(item, field, value)}
+                      onDelete={() => deleteItem(item)}
+                    />
                   ))}
                   {isEditable && (
                     <div className="px-4 py-3 border-t border-[#e0e0e0] dark:border-[#2a3a4a]">
@@ -1817,7 +1853,13 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   {items.map((item, idx) => (
-                    <AssetCard key={`${sector}-${idx}`} item={item} />
+                    <AssetCard
+                      key={`${sector}-${idx}`}
+                      item={item}
+                      editable={isEditable}
+                      onSave={(field, value) => saveItem(item, field, value)}
+                      onDelete={() => deleteItem(item)}
+                    />
                   ))}
                 </div>
               ))
@@ -1825,7 +1867,13 @@ export default function DashboardPage() {
               <p className="py-12 text-center text-sm text-gray-400">데이터가 없습니다.</p>
             ) : (
               displayItems.map((item, idx) => (
-                <AssetCard key={`${activeTab}-${idx}`} item={item} />
+                <AssetCard
+                  key={`${activeTab}-${idx}`}
+                  item={item}
+                  editable={isEditable}
+                  onSave={(field, value) => saveItem(item, field, value)}
+                  onDelete={() => deleteItem(item)}
+                />
               ))
             )}
           </div>
