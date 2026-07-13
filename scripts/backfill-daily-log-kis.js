@@ -54,6 +54,10 @@ function normalizeKisCode(code) {
   return match ? match[0] : null;
 }
 
+function normalizeAccountName(name) {
+  return typeof name === "string" ? name.replace(/\([^)]*\)/g, "").trim() : "";
+}
+
 async function getAccessToken() {
   const res = await fetch(`${BASE_URL}/oauth2/tokenP`, {
     method: "POST",
@@ -139,6 +143,34 @@ function getPriceOnOrBefore(priceMap, date, fallback) {
   return bestPrice;
 }
 
+function getAssetAmounts(asset, priceByCode, date) {
+  const quantity = Number(asset.quantity || 0);
+  const avgPrice = Number(asset.avg_price || 0);
+  const isManual = asset.valuation_mode === "manual";
+  const valuationDate = typeof asset.valuation_updated_at === "string"
+    ? asset.valuation_updated_at.slice(0, 10)
+    : null;
+
+  if (isManual && (!valuationDate || date < valuationDate)) return null;
+
+  if (isManual) {
+    return {
+      invest: Number(asset.manual_invest_amount || 0),
+      value: Number(asset.manual_value || 0),
+    };
+  }
+
+  const kisCode = normalizeKisCode(asset.code);
+  const currentPrice = kisCode
+    ? getPriceOnOrBefore(priceByCode.get(kisCode) || new Map(), date, avgPrice)
+    : avgPrice;
+
+  return {
+    invest: quantity * avgPrice,
+    value: quantity * currentPrice,
+  };
+}
+
 function summarizeAssets(assets, priceByCode, date, assetTypes) {
   let invest = 0;
   let value = 0;
@@ -146,15 +178,10 @@ function summarizeAssets(assets, priceByCode, date, assetTypes) {
   assets
     .filter((asset) => assetTypes.includes(asset.asset_type))
     .forEach((asset) => {
-      const quantity = Number(asset.quantity || 0);
-      const avgPrice = Number(asset.avg_price || 0);
-      const kisCode = normalizeKisCode(asset.code);
-      const currentPrice = kisCode
-        ? getPriceOnOrBefore(priceByCode.get(kisCode) || new Map(), date, avgPrice)
-        : avgPrice;
-
-      invest += quantity * avgPrice;
-      value += quantity * currentPrice;
+      const amounts = getAssetAmounts(asset, priceByCode, date);
+      if (!amounts) return;
+      invest += amounts.invest;
+      value += amounts.value;
     });
 
   return {
@@ -162,6 +189,44 @@ function summarizeAssets(assets, priceByCode, date, assetTypes) {
     value,
     profit: value - invest,
   };
+}
+
+function summarizeAccounts(assets, priceByCode, date, cashByAccount) {
+  const accounts = new Map();
+
+  assets.forEach((asset) => {
+    const accountName = normalizeAccountName(asset.account_name);
+    if (!accountName) return;
+    const amounts = getAssetAmounts(asset, priceByCode, date);
+    if (!amounts) return;
+
+    const category = asset.asset_type === "개별주식" ? "stocks" : "pension";
+    const key = `${category}:${accountName}`;
+    const current = accounts.get(key) || {
+      user_id: OWNER_USER_ID,
+      date,
+      category,
+      account_name: accountName,
+      invest: 0,
+      value: 0,
+      cash: 0,
+      profit: 0,
+      total: 0,
+      updated_at: new Date().toISOString(),
+    };
+
+    current.invest += amounts.invest;
+    current.value += amounts.value;
+    accounts.set(key, current);
+  });
+
+  accounts.forEach((account) => {
+    account.cash = cashByAccount.get(account.account_name) || 0;
+    account.profit = account.value - account.invest;
+    account.total = account.value + account.cash;
+  });
+
+  return Array.from(accounts.values());
 }
 
 async function main() {
@@ -183,12 +248,26 @@ async function main() {
 
   const { data: assets, error: assetsError } = await supabase
     .from("assets")
-    .select("asset_type, code, quantity, avg_price")
+    .select("account_name, asset_type, code, quantity, avg_price, valuation_mode, manual_invest_amount, manual_value, valuation_updated_at")
     .eq("is_cash", false)
     .eq("user_id", OWNER_USER_ID)
     .neq("asset_type", "암호화폐");
 
   if (assetsError) throw assetsError;
+
+  const { data: cashRows, error: cashError } = await supabase
+    .from("cash")
+    .select("account_name, amount")
+    .eq("user_id", OWNER_USER_ID);
+
+  if (cashError) throw cashError;
+
+  const cashByAccount = new Map();
+  (cashRows || []).forEach((row) => {
+    const accountName = normalizeAccountName(row.account_name);
+    if (!accountName) return;
+    cashByAccount.set(accountName, (cashByAccount.get(accountName) || 0) + Number(row.amount || 0));
+  });
 
   const codes = Array.from(
     new Set(
@@ -230,6 +309,10 @@ async function main() {
     };
   });
 
+  const accountRows = validLogs.flatMap((log) =>
+    summarizeAccounts(assets || [], priceByCode, log.date, cashByAccount)
+  );
+
   const preview = rows.slice(0, 5).map((row) => ({
     date: row.date,
     total: row.stocks_value + row.pension_value + row.total_cash,
@@ -239,6 +322,7 @@ async function main() {
 
   console.table(preview);
   console.log(`Prepared ${rows.length} daily_log rows from ${startDate} to ${endDate}.`);
+  console.log(`Prepared ${accountRows.length} daily_account_log rows.`);
 
   if (!APPLY) {
     console.log("Dry run only. Re-run with --apply to update Supabase.");
@@ -261,7 +345,16 @@ async function main() {
     }
   }
 
+  for (let index = 0; index < accountRows.length; index += 500) {
+    const batch = accountRows.slice(index, index + 500);
+    const { error: accountError } = await supabase
+      .from("daily_account_log")
+      .upsert(batch, { onConflict: "user_id,date,category,account_name" });
+    if (accountError) throw accountError;
+  }
+
   console.log(`Updated ${rows.length} daily_log rows.`);
+  console.log(`Updated ${accountRows.length} daily_account_log rows.`);
 }
 
 main().catch((error) => {

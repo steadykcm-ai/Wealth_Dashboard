@@ -23,6 +23,19 @@ interface DailyLogData {
   total_cash: number;
 }
 
+interface DailyAccountLogData {
+  user_id: string;
+  date: string;
+  category: "stocks" | "pension";
+  account_name: string;
+  invest: number;
+  value: number;
+  cash: number;
+  profit: number;
+  total: number;
+  updated_at: string;
+}
+
 interface PriceRow {
   code?: string | null;
   price?: number | null;
@@ -33,6 +46,8 @@ interface AssetCodeRow {
 }
 
 interface AssetRow {
+  account_name?: string | null;
+  asset_type?: string | null;
   code?: string | null;
   quantity?: number | null;
   avg_price?: number | null;
@@ -176,6 +191,88 @@ function normalizeAccountName(name: string): string {
   return name.replace(/\([^)]*\)/g, "").trim();
 }
 
+async function calculateAccounts(
+  userId: string,
+  date: string,
+  prices: Record<string, number>
+): Promise<DailyAccountLogData[]> {
+  const [{ data: assets, error: assetsError }, { data: cashRecords, error: cashError }] = await Promise.all([
+    supabase
+      .from("assets")
+      .select("account_name, asset_type, code, quantity, avg_price, valuation_mode, manual_invest_amount, manual_value")
+      .eq("is_cash", false)
+      .eq("user_id", userId)
+      .neq("asset_type", "암호화폐"),
+    supabase
+      .from("cash")
+      .select("account_name, amount")
+      .eq("user_id", userId),
+  ]);
+
+  if (assetsError || !assets) return [];
+
+  const accounts = new Map<string, Omit<DailyAccountLogData, "user_id" | "date" | "updated_at">>();
+  const categoriesByAccount = new Map<string, Set<"stocks" | "pension">>();
+
+  (assets as AssetRow[]).forEach((asset) => {
+    const accountName = normalizeAccountName(asset.account_name || "");
+    if (!accountName) return;
+
+    const category = asset.asset_type === "개별주식" ? "stocks" : "pension";
+    const key = `${category}:${accountName}`;
+    const quantity = Number(asset.quantity || 0);
+    const avgPrice = Number(asset.avg_price || 0);
+    const isManual = asset.valuation_mode === "manual";
+    const investAmount = isManual
+      ? Number(asset.manual_invest_amount || 0)
+      : quantity * avgPrice;
+    const currentValue = isManual
+      ? Number(asset.manual_value || 0)
+      : quantity * (asset.code ? prices[asset.code] || avgPrice : avgPrice);
+    const current = accounts.get(key) ?? {
+      category,
+      account_name: accountName,
+      invest: 0,
+      value: 0,
+      cash: 0,
+      profit: 0,
+      total: 0,
+    };
+
+    current.invest += investAmount;
+    current.value += currentValue;
+    accounts.set(key, current);
+
+    const categories = categoriesByAccount.get(accountName) ?? new Set<"stocks" | "pension">();
+    categories.add(category);
+    categoriesByAccount.set(accountName, categories);
+  });
+
+  if (!cashError && cashRecords) {
+    (cashRecords as CashRow[]).forEach((record) => {
+      const accountName = normalizeAccountName(record.account_name || "");
+      const categories = categoriesByAccount.get(accountName);
+      if (!accountName || !categories || categories.size !== 1) return;
+
+      const category = categories.values().next().value;
+      if (!category) return;
+      const key = `${category}:${accountName}`;
+      const current = accounts.get(key);
+      if (current) current.cash += Number(record.amount || 0);
+    });
+  }
+
+  const updatedAt = new Date().toISOString();
+  return Array.from(accounts.values()).map((account) => ({
+    ...account,
+    user_id: userId,
+    date,
+    profit: account.value - account.invest,
+    total: account.value + account.cash,
+    updated_at: updatedAt,
+  }));
+}
+
 async function calculateCashByCategory(userId: string): Promise<CategoryCash> {
   const [{ data: cashRecords, error: cashError }, { data: assets, error: assetsError }] = await Promise.all([
     supabase
@@ -222,7 +319,10 @@ async function calculateCashByCategory(userId: string): Promise<CategoryCash> {
   }, { total: 0, stocks: 0, pension: 0 });
 }
 
-export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
+export async function calculateDailyLog(userId: string): Promise<{
+  daily: DailyLogData;
+  accounts: DailyAccountLogData[];
+}> {
   const today = getKoreaDateString();
   const closingPrices = await fetchClosingPrices(userId, today);
   const cachedPrices = await fetchCachedPrices();
@@ -232,7 +332,7 @@ export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
   const pension = await calculateCategory(["개인연금", "IRP"], prices, userId);
   const cash = await calculateCashByCategory(userId);
 
-  return {
+  const daily = {
     date: today,
     stocks_invest: stocks.invest,
     stocks_value: stocks.value,
@@ -247,11 +347,14 @@ export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
     crypto_profit: 0,
     total_cash: cash.total,
   };
+
+  const accounts = await calculateAccounts(userId, today, prices);
+  return { daily, accounts };
 }
 
 export async function saveDailyLog(userId: string): Promise<boolean> {
   try {
-    const dailyData = await calculateDailyLog(userId);
+    const { daily: dailyData, accounts } = await calculateDailyLog(userId);
     const dataToSave = { ...dailyData, user_id: userId };
 
     const { data: updatedRows, error: updateError } = await supabase
@@ -269,6 +372,14 @@ export async function saveDailyLog(userId: string): Promise<boolean> {
         .insert(dataToSave);
 
       if (insertError) return false;
+    }
+
+    if (accounts.length > 0) {
+      const { error: accountError } = await supabase
+        .from("daily_account_log")
+        .upsert(accounts, { onConflict: "user_id,date,category,account_name" });
+
+      if (accountError) return false;
     }
 
     return true;

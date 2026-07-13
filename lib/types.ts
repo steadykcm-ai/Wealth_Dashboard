@@ -113,6 +113,16 @@ export interface CategorySnapshot {
   total: number;
 }
 
+export interface AccountDailySnapshot {
+  category: "stocks" | "pension";
+  accountName: string;
+  invest: number;
+  value: number;
+  cash: number;
+  profit: number;
+  total: number;
+}
+
 export interface DailyLogItem {
   date: string;
   total: CategorySnapshot;
@@ -120,6 +130,7 @@ export interface DailyLogItem {
   pension: CategorySnapshot;
   blockchain: CategorySnapshot;
   crypto: CategorySnapshot;
+  accounts: AccountDailySnapshot[];
 }
 
 export interface CryptoAssetRow {

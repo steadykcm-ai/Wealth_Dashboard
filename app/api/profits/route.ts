@@ -5,6 +5,17 @@ import type { DailyLogItem, CategorySnapshot } from "@/lib/types";
 
 export const revalidate = 0;
 
+interface AccountLogRow {
+  date: string;
+  category: "stocks" | "pension";
+  account_name: string;
+  invest: number;
+  value: number;
+  cash: number;
+  profit: number;
+  total: number;
+}
+
 function getKoreaDateString(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
@@ -33,6 +44,26 @@ export async function GET() {
     if (!dailyLogs || dailyLogs.length === 0) {
       return NextResponse.json({ data: [], error: null });
     }
+
+    const oldestDate = dailyLogs[dailyLogs.length - 1]?.date;
+    const newestDate = dailyLogs[0]?.date;
+    const { data: accountLogs, error: accountError } = await supabase
+      .from("daily_account_log")
+      .select("date, category, account_name, invest, value, cash, profit, total")
+      .eq("user_id", session.user.id)
+      .gte("date", oldestDate)
+      .lte("date", newestDate)
+      .order("date", { ascending: false })
+      .limit(5000);
+
+    if (accountError) throw accountError;
+
+    const accountsByDate = new Map<string, AccountLogRow[]>();
+    ((accountLogs || []) as AccountLogRow[]).forEach((account) => {
+      const rows = accountsByDate.get(account.date) ?? [];
+      rows.push(account);
+      accountsByDate.set(account.date, rows);
+    });
 
     const logs: DailyLogItem[] = dailyLogs
       .filter((row) => row.date)
@@ -68,6 +99,15 @@ export async function GET() {
           profit: 0,
           total: 0,
         },
+        accounts: (accountsByDate.get(row.date) ?? []).map((account) => ({
+          category: account.category,
+          accountName: account.account_name,
+          invest: Number(account.invest || 0),
+          value: Number(account.value || 0),
+          cash: Number(account.cash || 0),
+          profit: Number(account.profit || 0),
+          total: Number(account.total || 0),
+        })),
       }));
 
     const latestLogDate = logs[0]?.date ?? null;

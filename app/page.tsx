@@ -306,6 +306,29 @@ function AssetTrendChart({
   const { resolvedTheme } = useTheme();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [period, setPeriod] = useState<"1month" | "3month" | "all">("all");
+  const [selectedAccount, setSelectedAccount] = useState("전체");
+
+  useEffect(() => {
+    setSelectedAccount("전체");
+  }, [category]);
+
+  const accountCategory = category === "개별주식" ? "stocks" : "pension";
+  const accountOptions = useMemo(() => {
+    if (category === "전체") return [];
+    const latestTotals = new Map<string, number>();
+    logs.forEach((log) => {
+      log.accounts
+        .filter((account) => account.category === accountCategory)
+        .forEach((account) => {
+          if (!latestTotals.has(account.accountName)) {
+            latestTotals.set(account.accountName, account.total);
+          }
+        });
+    });
+    return Array.from(latestTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name]) => name);
+  }, [accountCategory, category, logs]);
 
   if (logs.length === 0) {
     return null;
@@ -327,14 +350,18 @@ function AssetTrendChart({
   const data = filteredLogs.map((log) => ({
     date: new Date(log.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }),
     total: log.total.total,
-    stocks: log.stocks.value,
-    pension: log.pension.value,
+    stocks: log.stocks.total,
+    pension: log.pension.total,
+    selected: selectedAccount === "전체"
+      ? (category === "개별주식" ? log.stocks.total : log.pension.total)
+      : log.accounts.find(
+        (account) => account.category === accountCategory && account.accountName === selectedAccount
+      )?.total ?? null,
     fullDate: log.date,
   }));
 
   const isTotal = category === "전체";
-  const title = isTotal ? "총자산 추이" : `${category} 종목 평가액 추이`;
-  const selectedKey = category === "개별주식" ? "stocks" : "pension";
+  const title = isTotal ? "총자산 추이" : `${category} 자산 추이`;
   const selectedLabel = category === "개별주식" ? "주식" : "연금";
   const selectedColor = category === "개별주식" ? "#26a69a" : "#ff7043";
 
@@ -342,11 +369,17 @@ function AssetTrendChart({
   const gridColor = resolvedTheme === "dark" ? "#2a3a4a" : "#f0f0f0";
   const axisColor = resolvedTheme === "dark" ? "#94a3b8" : "#6b7280";
 
-  const CustomTooltip = ({ active, payload }: ChartTooltipProps<{ total: number; stocks: number; pension: number; fullDate: string }>) => {
+  const CustomTooltip = ({ active, payload }: ChartTooltipProps<{
+    total: number;
+    stocks: number;
+    pension: number;
+    selected: number | null;
+    fullDate: string;
+  }>) => {
     if (active && payload && payload.length > 0) {
       const chartPayload = payload[0].payload;
       if (!chartPayload) return null;
-      const { total, stocks, pension, fullDate } = chartPayload;
+      const { total, stocks, pension, selected, fullDate } = chartPayload;
       return (
         <div className="rounded-md bg-white/90 dark:bg-gray-900/90 px-3 py-2 border border-gray-200 dark:border-gray-700 shadow-md">
           <p className="text-xs font-semibold mb-2" style={{ color: textColor }}>
@@ -359,13 +392,15 @@ function AssetTrendChart({
           {isTotal ? (
             <>
               <p className="text-xs" style={{ color: "#3d47cf" }}>총자산: {formatKRW(total)}</p>
-              <p className="text-xs" style={{ color: "#26a69a" }}>주식 종목: {formatKRW(stocks)}</p>
-              <p className="text-xs" style={{ color: "#ff7043" }}>연금 종목: {formatKRW(pension)}</p>
+              <p className="text-xs" style={{ color: "#26a69a" }}>주식 총자산: {formatKRW(stocks)}</p>
+              <p className="text-xs" style={{ color: "#ff7043" }}>연금 총자산: {formatKRW(pension)}</p>
             </>
           ) : (
-            <p className="text-xs" style={{ color: selectedColor }}>
-              {selectedLabel} 종목: {formatKRW(category === "개별주식" ? stocks : pension)}
-            </p>
+            selected !== null && (
+              <p className="text-xs" style={{ color: selectedColor }}>
+                {selectedAccount === "전체" ? `${selectedLabel} 총자산` : selectedAccount}: {formatKRW(selected)}
+              </p>
+            )
           )}
         </div>
       );
@@ -382,7 +417,7 @@ function AssetTrendChart({
           </h2>
           <div className="flex flex-1 flex-wrap items-center gap-2 sm:mx-4">
             <span className="rounded-full bg-[#eef1ff] px-2 py-0.5 text-xs font-medium text-[#3d47cf] dark:bg-[#202a48]">
-              {isTotal ? "종가 확정 로그 기준" : "종목 평가액 · 종가 기준"}
+              {isTotal ? "종가 확정 로그 기준" : "현금 포함 총자산 · 종가 기준"}
             </span>
             {meta?.latestLogDate && (
               <span className="text-xs text-gray-400">
@@ -428,6 +463,24 @@ function AssetTrendChart({
             </button>
           </div>
         </div>
+        {!isTotal && accountOptions.length > 0 && (
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="계좌 선택">
+            {["전체", ...accountOptions].map((accountName) => (
+              <button
+                key={accountName}
+                type="button"
+                onClick={() => setSelectedAccount(accountName)}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  selectedAccount === accountName
+                    ? "border-[#3d47cf] bg-[#3d47cf] text-white"
+                    : "border-[#e0e0e0] bg-white text-gray-600 dark:border-[#2a3a4a] dark:bg-[#0f1923] dark:text-gray-300"
+                }`}
+              >
+                {accountName}
+              </button>
+            ))}
+          </div>
+        )}
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
@@ -454,7 +507,19 @@ function AssetTrendChart({
                 <Area key={`${period}-pension`} type="monotone" dataKey="pension" stroke="#ff7043" strokeWidth={1.5} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
               </>
             ) : (
-              <Area key={`${category}-${period}`} type="monotone" dataKey={selectedKey} stroke={selectedColor} strokeWidth={2} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+              <Area
+                key={`${category}-${selectedAccount}-${period}`}
+                type="monotone"
+                dataKey="selected"
+                stroke={selectedColor}
+                strokeWidth={2}
+                fill="none"
+                dot={selectedAccount === "전체" ? false : { r: 3, strokeWidth: 1 }}
+                activeDot={{ r: 4, strokeWidth: 2 }}
+                isAnimationActive={!prefersReducedMotion}
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
             )}
           </AreaChart>
         </ResponsiveContainer>
