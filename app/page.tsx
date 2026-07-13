@@ -264,13 +264,15 @@ function SmallDonutChart({ title, items }: { title: string; items: BreakdownItem
   );
 }
 
-// ── 총자산 추이 차트 ──────────────────────────────────────
-function TotalAssetChart({
+// ── 자산 추이 차트 ────────────────────────────────────────
+function AssetTrendChart({
   logs,
   meta,
+  category,
 }: {
   logs: DailyLogItem[];
   meta: ProfitLogMeta | null;
+  category: "전체" | "개별주식" | "개인연금";
 }) {
   const { resolvedTheme } = useTheme();
   const [period, setPeriod] = useState<"1month" | "3month" | "all">("all");
@@ -300,6 +302,12 @@ function TotalAssetChart({
     fullDate: log.date,
   }));
 
+  const isTotal = category === "전체";
+  const title = isTotal ? "총자산 추이" : `${category} 추이`;
+  const selectedKey = category === "개별주식" ? "stocks" : "pension";
+  const selectedLabel = category === "개별주식" ? "주식" : "연금";
+  const selectedColor = category === "개별주식" ? "#26a69a" : "#ff7043";
+
   const textColor = resolvedTheme === "dark" ? "#d1d5db" : "#111827";
   const gridColor = resolvedTheme === "dark" ? "#2a3a4a" : "#f0f0f0";
   const axisColor = resolvedTheme === "dark" ? "#94a3b8" : "#6b7280";
@@ -318,9 +326,17 @@ function TotalAssetChart({
               day: "2-digit",
             })}
           </p>
-          <p className="text-xs" style={{ color: "#3d47cf" }}>총자산: {formatKRW(total)}</p>
-          <p className="text-xs" style={{ color: "#26a69a" }}>주식: {formatKRW(stocks)}</p>
-          <p className="text-xs" style={{ color: "#ff7043" }}>연금: {formatKRW(pension)}</p>
+          {isTotal ? (
+            <>
+              <p className="text-xs" style={{ color: "#3d47cf" }}>총자산: {formatKRW(total)}</p>
+              <p className="text-xs" style={{ color: "#26a69a" }}>주식: {formatKRW(stocks)}</p>
+              <p className="text-xs" style={{ color: "#ff7043" }}>연금: {formatKRW(pension)}</p>
+            </>
+          ) : (
+            <p className="text-xs" style={{ color: selectedColor }}>
+              {selectedLabel}: {formatKRW(category === "개별주식" ? stocks : pension)}
+            </p>
+          )}
         </div>
       );
     }
@@ -330,13 +346,13 @@ function TotalAssetChart({
   return (
     <div className="mb-6 px-4 md:px-0">
       <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-            총자산 추이
+            {title}
           </h2>
-          <div className="mx-4 flex flex-1 flex-wrap items-center gap-2">
+          <div className="flex flex-1 flex-wrap items-center gap-2 sm:mx-4">
             <span className="rounded-full bg-[#eef1ff] px-2 py-0.5 text-xs font-medium text-[#3d47cf] dark:bg-[#202a48]">
-              종가 확정 로그 기준
+              {isTotal ? "종가 확정 로그 기준" : "종가 + 분리 저장 현금 기준"}
             </span>
             {meta?.latestLogDate && (
               <span className="text-xs text-gray-400">
@@ -349,7 +365,7 @@ function TotalAssetChart({
               </span>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 self-start sm:self-auto">
             <button
               onClick={() => setPeriod("1month")}
               className="px-3 py-1 text-xs font-medium rounded-lg transition-colors"
@@ -398,10 +414,15 @@ function TotalAssetChart({
               tickFormatter={(v) => formatKRW(v)}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Area type="monotone" dataKey="total" stroke="#3d47cf" strokeWidth={2} fill="none" isAnimationActive={true} />
-            <Area type="monotone" dataKey="stocks" stroke="#26a69a" strokeWidth={1.5} fill="none" isAnimationActive={true} />
-            <Area type="monotone" dataKey="pension" stroke="#ff7043" strokeWidth={1.5} fill="none" isAnimationActive={true} />
-            <Area type="monotone" dataKey="irp" stroke="#ab47bc" strokeWidth={1.5} fill="none" isAnimationActive={true} />
+            {isTotal ? (
+              <>
+                <Area type="monotone" dataKey="total" stroke="#3d47cf" strokeWidth={2} fill="none" isAnimationActive={true} />
+                <Area type="monotone" dataKey="stocks" stroke="#26a69a" strokeWidth={1.5} fill="none" isAnimationActive={true} />
+                <Area type="monotone" dataKey="pension" stroke="#ff7043" strokeWidth={1.5} fill="none" isAnimationActive={true} />
+              </>
+            ) : (
+              <Area type="monotone" dataKey={selectedKey} stroke={selectedColor} strokeWidth={2} fill="none" isAnimationActive={true} />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -1905,7 +1926,7 @@ export default function DashboardPage() {
               onTabChange={setActiveTab}
             />
             {/* 총자산 추이 차트 */}
-            <TotalAssetChart logs={profitLogs} meta={profitLogMeta} />
+            <AssetTrendChart logs={profitLogs} meta={profitLogMeta} category="전체" />
           </>
         )}
 
@@ -1924,6 +1945,14 @@ export default function DashboardPage() {
             />
           );
         })()}
+
+        {(activeTab === "개별주식" || activeTab === "개인연금") && (
+          <AssetTrendChart
+            logs={profitLogs}
+            meta={profitLogMeta}
+            category={activeTab}
+          />
+        )}
 
         {/* 전체 탭: 카테고리별 계좌 현황 */}
         {activeTab === "전체" && summary && (

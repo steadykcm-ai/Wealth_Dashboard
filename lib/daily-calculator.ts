@@ -12,9 +12,11 @@ interface DailyLogData {
   stocks_invest: number;
   stocks_value: number;
   stocks_profit: number;
+  stocks_cash: number;
   pension_invest: number;
   pension_value: number;
   pension_profit: number;
+  pension_cash: number;
   crypto_invest: number;
   crypto_value: number;
   crypto_profit: number;
@@ -37,7 +39,19 @@ interface AssetRow {
 }
 
 interface CashRow {
+  account_name?: string | null;
   amount?: number | null;
+}
+
+interface AccountCategoryRow {
+  account_name?: string | null;
+  asset_type?: string | null;
+}
+
+interface CategoryCash {
+  total: number;
+  stocks: number;
+  pension: number;
 }
 
 function getKoreaDateString(): string {
@@ -149,18 +163,54 @@ async function calculateCategory(
   };
 }
 
-async function calculateCash(userId: string): Promise<number> {
-  const { data: cashRecords, error } = await supabase
-    .from("cash")
-    .select("amount")
-    .eq("user_id", userId);
+function normalizeAccountName(name: string): string {
+  return name.replace(/\([^)]*\)/g, "").trim();
+}
 
-  if (error || !cashRecords) return 0;
+async function calculateCashByCategory(userId: string): Promise<CategoryCash> {
+  const [{ data: cashRecords, error: cashError }, { data: assets, error: assetsError }] = await Promise.all([
+    supabase
+      .from("cash")
+      .select("account_name, amount")
+      .eq("user_id", userId),
+    supabase
+      .from("assets")
+      .select("account_name, asset_type")
+      .eq("is_cash", false)
+      .eq("user_id", userId)
+      .neq("asset_type", "암호화폐"),
+  ]);
 
-  return (cashRecords as CashRow[]).reduce(
-    (sum, record) => sum + Number(record.amount || 0),
-    0
-  );
+  if (cashError || !cashRecords) {
+    return { total: 0, stocks: 0, pension: 0 };
+  }
+
+  const categoriesByAccount = new Map<string, Set<"stocks" | "pension">>();
+  const accountRows = assetsError || !assets ? [] : assets as AccountCategoryRow[];
+  accountRows.forEach((asset) => {
+    const accountName = normalizeAccountName(asset.account_name || "");
+    if (!accountName) return;
+
+    const category = asset.asset_type === "개별주식" ? "stocks" : "pension";
+    const categories = categoriesByAccount.get(accountName) ?? new Set<"stocks" | "pension">();
+    categories.add(category);
+    categoriesByAccount.set(accountName, categories);
+  });
+
+  return (cashRecords as CashRow[]).reduce<CategoryCash>((result, record) => {
+    const amount = Number(record.amount || 0);
+    const accountName = normalizeAccountName(record.account_name || "");
+    const categories = categoriesByAccount.get(accountName);
+
+    result.total += amount;
+    if (categories?.size === 1) {
+      const category = categories.values().next().value;
+      if (category === "stocks") result.stocks += amount;
+      if (category === "pension") result.pension += amount;
+    }
+
+    return result;
+  }, { total: 0, stocks: 0, pension: 0 });
 }
 
 export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
@@ -171,20 +221,22 @@ export async function calculateDailyLog(userId: string): Promise<DailyLogData> {
 
   const stocks = await calculateCategory(["개별주식"], prices, userId);
   const pension = await calculateCategory(["개인연금", "IRP"], prices, userId);
-  const totalCash = await calculateCash(userId);
+  const cash = await calculateCashByCategory(userId);
 
   return {
     date: today,
     stocks_invest: stocks.invest,
     stocks_value: stocks.value,
     stocks_profit: stocks.profit,
+    stocks_cash: cash.stocks,
     pension_invest: pension.invest,
     pension_value: pension.value,
     pension_profit: pension.profit,
+    pension_cash: cash.pension,
     crypto_invest: 0,
     crypto_value: 0,
     crypto_profit: 0,
-    total_cash: totalCash,
+    total_cash: cash.total,
   };
 }
 

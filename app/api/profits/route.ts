@@ -48,13 +48,13 @@ export async function GET() {
           invest: row.stocks_invest || 0,
           value: row.stocks_value || 0,
           profit: row.stocks_profit || 0,
-          total: row.stocks_value || 0,
+          total: (row.stocks_value || 0) + (row.stocks_cash || 0),
         },
         pension: {
           invest: row.pension_invest || 0,
           value: row.pension_value || 0,
           profit: row.pension_profit || 0,
-          total: row.pension_value || 0,
+          total: (row.pension_value || 0) + (row.pension_cash || 0),
         },
         blockchain: {
           invest: 0,
