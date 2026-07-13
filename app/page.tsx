@@ -86,6 +86,14 @@ function latestPriceUpdatedAt(items: AssetItem[]): string | undefined {
     .at(-1);
 }
 
+function accountValueWithCashOverride(
+  account: AccountGroup,
+  cashOverrides?: Record<string, number>
+): number {
+  const displayCash = cashOverrides?.[account.name] ?? account.cash;
+  return account.totalValue - account.cash + displayCash;
+}
+
 const CATEGORY_COLORS: Record<AssetCategory, string> = {
   개별주식: "#3d47cf",
   개인연금: "#26a69a",
@@ -1435,6 +1443,10 @@ function AccountsOverview({
   onAddAccount?: () => void;
 }) {
   if (accounts.length === 0 && totalCash <= 0) return null;
+  const displayTotalCash = accounts.reduce(
+    (sum, acct) => sum + (cashOverrides?.[acct.name] ?? acct.cash),
+    0
+  );
 
   return (
     <div className="px-4 md:px-0 mb-4">
@@ -1454,10 +1466,10 @@ function AccountsOverview({
                 + 계좌
               </button>
             )}
-            {totalCash > 0 && (
+            {displayTotalCash > 0 && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-gray-400">전체 현금</span>
-                <span className="text-sm font-bold text-gray-800 dark:text-white">{formatKRW(totalCash)}</span>
+                <span className="text-sm font-bold text-gray-800 dark:text-white">{formatKRW(displayTotalCash)}</span>
               </div>
             )}
           </div>
@@ -1465,6 +1477,7 @@ function AccountsOverview({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {accounts.map((acct) => {
             const displayCash = cashOverrides?.[acct.name] ?? acct.cash;
+            const displayTotalValue = accountValueWithCashOverride(acct, cashOverrides);
             const canEditCash = editable && !!onCashSave;
             return (
               <div
@@ -1472,7 +1485,7 @@ function AccountsOverview({
                 className="rounded-lg border border-[#e8e8e8] dark:border-[#2a3a4a] p-3 bg-[#f8f9fc] dark:bg-[#0f1923]"
               >
                 <p className="text-xs font-bold text-[#3d47cf] truncate mb-2">{acct.name}</p>
-                <p className="text-sm font-bold text-gray-900 dark:text-white">{formatKRW(acct.totalValue)}</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">{formatKRW(displayTotalValue)}</p>
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-xs text-gray-400">원금 {formatKRW(acct.totalInvest)}</span>
                   <RateBadge rate={acct.returnRate} />
@@ -1693,8 +1706,14 @@ export default function DashboardPage() {
     if (!summary) return null;
     if (activeTab === "전체") {
       const totalInvest = adjustedGroups.reduce((s, g) => s + g.totalInvest, 0);
-      const totalValue = adjustedGroups.reduce((s, g) => s + g.totalValue, 0);
-      const totalProfitLoss = adjustedGroups.reduce((s, g) => s + g.totalProfitLoss, 0);
+      const totalValue = adjustedGroups.reduce((sum, group) => {
+        const displayCash = group.accounts.reduce(
+          (cashSum, account) => cashSum + (cashOverrides[account.name] ?? account.cash),
+          0
+        );
+        return sum + group.totalValue - group.cash + displayCash;
+      }, 0);
+      const totalProfitLoss = totalValue - totalInvest;
       const returnRate = totalInvest > 0 ? (totalProfitLoss / totalInvest) * 100 : 0;
       return {
         totalInvest,
@@ -1706,11 +1725,17 @@ export default function DashboardPage() {
     }
     const g = summary.groups.find((g) => g.category === activeTab);
     if (!g) return null;
+    const displayCash = g.accounts.reduce(
+      (sum, account) => sum + (cashOverrides[account.name] ?? account.cash),
+      0
+    );
+    const totalValue = g.totalValue - g.cash + displayCash;
+    const totalProfitLoss = totalValue - g.totalInvest;
     return {
       totalInvest: g.totalInvest,
-      totalValue: g.totalValue,
-      totalProfitLoss: g.totalProfitLoss,
-      returnRate: g.returnRate,
+      totalValue,
+      totalProfitLoss,
+      returnRate: g.totalInvest > 0 ? (totalProfitLoss / g.totalInvest) * 100 : 0,
       priceUpdatedAt: latestPriceUpdatedAt(g.items),
     };
   })();
@@ -1959,7 +1984,9 @@ export default function DashboardPage() {
                       <span className="ml-1.5 font-normal text-gray-400">({items.length})</span>
                     </span>
                     <div className="flex items-center gap-1.5 h-5">
-                      <span className="text-xs text-gray-500 leading-tight">{formatKRW(account.totalValue)}</span>
+                      <span className="text-xs text-gray-500 leading-tight">
+                        {formatKRW(accountValueWithCashOverride(account, cashOverrides))}
+                      </span>
                       <RateBadge rate={account.returnRate} />
                     </div>
                   </div>
@@ -2056,7 +2083,9 @@ export default function DashboardPage() {
                               <span className="ml-1.5 font-normal text-gray-400">({items.length}종목)</span>
                             </span>
                             <div className="flex items-center gap-1.5 h-5">
-                              <span className="text-xs text-gray-500 leading-tight whitespace-nowrap">{formatKRW(account.totalValue)}</span>
+                              <span className="text-xs text-gray-500 leading-tight whitespace-nowrap">
+                                {formatKRW(accountValueWithCashOverride(account, cashOverrides))}
+                              </span>
                               <span
                                 className="text-xs font-medium leading-tight whitespace-nowrap"
                                 style={{ color: rateColor(account.totalProfitLoss) }}
