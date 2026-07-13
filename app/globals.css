@@ -17,6 +17,27 @@ body {
   color: var(--fg);
 }
 
+@keyframes asset-chart-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.asset-chart-enter {
+  animation: asset-chart-enter 240ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asset-chart-enter {
+    animation: none;
+  }
+}
+
 /* 스크롤바 숨김 (모바일 탭 등) */
 .scrollbar-none {
   -ms-overflow-style: none;

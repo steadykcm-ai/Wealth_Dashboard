@@ -25,6 +25,21 @@ type ChartTooltipProps<TPayload extends object = Record<string, never>> = {
   }>;
 };
 
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(true);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
+    return () => mediaQuery.removeEventListener("change", updatePreference);
+  }, []);
+
+  return prefersReducedMotion;
+}
+
 interface TodayQuote {
   price: number;
   changeAmount: number;
@@ -275,6 +290,7 @@ function AssetTrendChart({
   category: "전체" | "개별주식" | "개인연금";
 }) {
   const { resolvedTheme } = useTheme();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [period, setPeriod] = useState<"1month" | "3month" | "all">("all");
 
   if (logs.length === 0) {
@@ -291,7 +307,7 @@ function AssetTrendChart({
       result = logs.filter(log => new Date(log.date) >= cutoff);
     }
     // 오름차순으로 정렬 (왼쪽=이전, 오른쪽=최신)
-    return result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return [...result].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   })();
 
   const data = filteredLogs.map((log) => ({
@@ -344,7 +360,7 @@ function AssetTrendChart({
   };
 
   return (
-    <div className="mb-6 px-4 md:px-0">
+    <div className="asset-chart-enter mb-6 px-4 md:px-0">
       <div className="rounded-xl border border-[#e0e0e0] bg-white dark:bg-[#1a2332] dark:border-[#2a3a4a] p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
@@ -413,15 +429,18 @@ function AssetTrendChart({
               tick={{ fill: axisColor }}
               tickFormatter={(v) => formatKRW(v)}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip
+              content={<CustomTooltip />}
+              cursor={{ stroke: axisColor, strokeDasharray: "4 4", strokeWidth: 1 }}
+            />
             {isTotal ? (
               <>
-                <Area type="monotone" dataKey="total" stroke="#3d47cf" strokeWidth={2} fill="none" isAnimationActive={true} />
-                <Area type="monotone" dataKey="stocks" stroke="#26a69a" strokeWidth={1.5} fill="none" isAnimationActive={true} />
-                <Area type="monotone" dataKey="pension" stroke="#ff7043" strokeWidth={1.5} fill="none" isAnimationActive={true} />
+                <Area key={`${period}-total`} type="monotone" dataKey="total" stroke="#3d47cf" strokeWidth={2} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+                <Area key={`${period}-stocks`} type="monotone" dataKey="stocks" stroke="#26a69a" strokeWidth={1.5} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+                <Area key={`${period}-pension`} type="monotone" dataKey="pension" stroke="#ff7043" strokeWidth={1.5} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
               </>
             ) : (
-              <Area type="monotone" dataKey={selectedKey} stroke={selectedColor} strokeWidth={2} fill="none" isAnimationActive={true} />
+              <Area key={`${category}-${period}`} type="monotone" dataKey={selectedKey} stroke={selectedColor} strokeWidth={2} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
             )}
           </AreaChart>
         </ResponsiveContainer>
