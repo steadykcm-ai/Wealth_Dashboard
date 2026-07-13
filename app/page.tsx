@@ -1734,7 +1734,7 @@ export default function DashboardPage() {
         );
         return sum + group.totalValue - group.cash + displayCash;
       }, 0);
-      const totalProfitLoss = totalValue - totalInvest;
+      const totalProfitLoss = adjustedGroups.reduce((sum, group) => sum + group.totalProfitLoss, 0);
       const returnRate = totalInvest > 0 ? (totalProfitLoss / totalInvest) * 100 : 0;
       return {
         totalInvest,
@@ -1751,7 +1751,7 @@ export default function DashboardPage() {
       0
     );
     const totalValue = g.totalValue - g.cash + displayCash;
-    const totalProfitLoss = totalValue - g.totalInvest;
+    const totalProfitLoss = g.totalProfitLoss;
     return {
       totalInvest: g.totalInvest,
       totalValue,

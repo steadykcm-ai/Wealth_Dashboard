@@ -42,6 +42,12 @@ function toIsoDate(kisDate) {
   return `${kisDate.slice(0, 4)}-${kisDate.slice(4, 6)}-${kisDate.slice(6, 8)}`;
 }
 
+function shiftIsoDate(date, days) {
+  const [year, month, day] = date.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
 function normalizeKisCode(code) {
   if (typeof code !== "string") return null;
   const match = code.match(/\d{6}/);
@@ -161,7 +167,7 @@ function summarizeAssets(assets, priceByCode, date, assetTypes) {
 async function main() {
   const { data: logs, error: logsError } = await supabase
     .from("daily_log")
-    .select("date")
+    .select("date, total_cash, stocks_cash, pension_cash")
     .eq("user_id", OWNER_USER_ID)
     .order("date", { ascending: true });
 
@@ -170,7 +176,8 @@ async function main() {
     throw new Error("No daily_log rows found to backfill.");
   }
 
-  const dates = logs.map((row) => row.date).filter(Boolean);
+  const validLogs = logs.filter((row) => row.date);
+  const dates = validLogs.map((row) => row.date);
   const startDate = dates[0];
   const endDate = dates[dates.length - 1];
 
@@ -183,14 +190,6 @@ async function main() {
 
   if (assetsError) throw assetsError;
 
-  const { data: cashRows, error: cashError } = await supabase
-    .from("cash")
-    .select("amount")
-    .eq("user_id", OWNER_USER_ID);
-
-  if (cashError) throw cashError;
-
-  const totalCash = (cashRows || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const codes = Array.from(
     new Set(
       (assets || [])
@@ -203,12 +202,13 @@ async function main() {
   const priceByCode = new Map();
 
   for (const code of codes) {
-    const closes = await fetchDailyCloses(token, code, startDate, endDate);
+    const closes = await fetchDailyCloses(token, code, shiftIsoDate(startDate, -14), endDate);
     priceByCode.set(code, closes);
     await sleep(150);
   }
 
-  const rows = dates.map((date) => {
+  const rows = validLogs.map((log) => {
+    const date = log.date;
     const stocks = summarizeAssets(assets || [], priceByCode, date, ["개별주식"]);
     const pension = summarizeAssets(assets || [], priceByCode, date, ["개인연금", "IRP"]);
 
@@ -218,13 +218,15 @@ async function main() {
       stocks_invest: stocks.invest,
       stocks_value: stocks.value,
       stocks_profit: stocks.profit,
+      stocks_cash: Number(log.stocks_cash || 0),
       pension_invest: pension.invest,
       pension_value: pension.value,
       pension_profit: pension.profit,
+      pension_cash: Number(log.pension_cash || 0),
       crypto_invest: 0,
       crypto_value: 0,
       crypto_profit: 0,
-      total_cash: totalCash,
+      total_cash: Number(log.total_cash || 0),
     };
   });
 

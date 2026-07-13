@@ -169,7 +169,7 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
     group.cash = group.accounts.reduce((s, acc) => s + (acc.cash || 0), 0);
     group.totalValue += group.cash;
 
-    group.totalProfitLoss = group.totalValue - group.totalInvest;
+    group.totalProfitLoss = group.items.reduce((sum, item) => sum + item.profitLoss, 0);
     group.returnRate = group.totalInvest > 0 ? (group.totalProfitLoss / group.totalInvest) * 100 : 0;
   });
 
@@ -178,7 +178,7 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
   const groupedCash = groupArray.reduce((sum, g) => sum + g.cash, 0);
   const ungroupedCash = Math.max(totalCash - groupedCash, 0);
   const totalValue = groupArray.reduce((sum, g) => sum + g.totalValue, 0) + ungroupedCash;
-  const totalProfitLoss = totalValue - totalInvest;
+  const totalProfitLoss = groupArray.reduce((sum, group) => sum + group.totalProfitLoss, 0);
   const priceUpdatedAt = groupArray
     .flatMap((group) => group.items.map((item) => item.priceUpdatedAt).filter(Boolean))
     .sort()

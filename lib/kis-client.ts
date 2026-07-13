@@ -38,6 +38,12 @@ function toKisDate(date: string): string {
   return date.replace(/-/g, "");
 }
 
+function shiftIsoDate(date: string, days: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
 async function getAccessToken(): Promise<string> {
   const now = Date.now();
   if (cachedToken && tokenExpireTime > now) {
@@ -172,11 +178,12 @@ export async function fetchKISDailyClose(
     if (!appKey || !appSecret) throw new Error("KIS credentials not set");
 
     const token = await getAccessToken();
+    const targetDate = toKisDate(date);
     const params = new URLSearchParams({
       FID_COND_MRKT_DIV_CODE: "J",
       FID_INPUT_ISCD: code,
-      FID_INPUT_DATE_1: toKisDate(date),
-      FID_INPUT_DATE_2: toKisDate(date),
+      FID_INPUT_DATE_1: toKisDate(shiftIsoDate(date, -14)),
+      FID_INPUT_DATE_2: targetDate,
       FID_PERIOD_DIV_CODE: "D",
       FID_ORG_ADJ_PRC: "0",
     });
@@ -200,7 +207,9 @@ export async function fetchKISDailyClose(
     }
 
     const data = (await response.json()) as KisDailyPriceResponse;
-    const row = data.output2?.find((item) => item.stck_bsop_date === toKisDate(date));
+    const row = data.output2
+      ?.filter((item) => item.stck_bsop_date && item.stck_bsop_date <= targetDate)
+      .sort((a, b) => (b.stck_bsop_date || "").localeCompare(a.stck_bsop_date || ""))[0];
     const close = Number(row?.stck_clpr);
 
     return Number.isFinite(close) && close > 0 ? close : null;
