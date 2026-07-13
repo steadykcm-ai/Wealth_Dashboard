@@ -313,13 +313,13 @@ function AssetTrendChart({
   const data = filteredLogs.map((log) => ({
     date: new Date(log.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }),
     total: log.total.total,
-    stocks: log.stocks.total,
-    pension: log.pension.total,
+    stocks: log.stocks.value,
+    pension: log.pension.value,
     fullDate: log.date,
   }));
 
   const isTotal = category === "전체";
-  const title = isTotal ? "총자산 추이" : `${category} 추이`;
+  const title = isTotal ? "총자산 추이" : `${category} 종목 평가액 추이`;
   const selectedKey = category === "개별주식" ? "stocks" : "pension";
   const selectedLabel = category === "개별주식" ? "주식" : "연금";
   const selectedColor = category === "개별주식" ? "#26a69a" : "#ff7043";
@@ -345,12 +345,12 @@ function AssetTrendChart({
           {isTotal ? (
             <>
               <p className="text-xs" style={{ color: "#3d47cf" }}>총자산: {formatKRW(total)}</p>
-              <p className="text-xs" style={{ color: "#26a69a" }}>주식: {formatKRW(stocks)}</p>
-              <p className="text-xs" style={{ color: "#ff7043" }}>연금: {formatKRW(pension)}</p>
+              <p className="text-xs" style={{ color: "#26a69a" }}>주식 종목: {formatKRW(stocks)}</p>
+              <p className="text-xs" style={{ color: "#ff7043" }}>연금 종목: {formatKRW(pension)}</p>
             </>
           ) : (
             <p className="text-xs" style={{ color: selectedColor }}>
-              {selectedLabel}: {formatKRW(category === "개별주식" ? stocks : pension)}
+              {selectedLabel} 종목: {formatKRW(category === "개별주식" ? stocks : pension)}
             </p>
           )}
         </div>
@@ -368,7 +368,7 @@ function AssetTrendChart({
           </h2>
           <div className="flex flex-1 flex-wrap items-center gap-2 sm:mx-4">
             <span className="rounded-full bg-[#eef1ff] px-2 py-0.5 text-xs font-medium text-[#3d47cf] dark:bg-[#202a48]">
-              {isTotal ? "종가 확정 로그 기준" : "종가 + 분리 저장 현금 기준"}
+              {isTotal ? "종가 확정 로그 기준" : "종목 평가액 · 종가 기준"}
             </span>
             {meta?.latestLogDate && (
               <span className="text-xs text-gray-400">
