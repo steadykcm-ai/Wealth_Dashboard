@@ -46,6 +46,8 @@ interface TodayQuote {
   changeRate: number;
 }
 
+type EditableAssetField = "quantity" | "avgPrice" | "manualValue";
+
 // 종목 데이터: [종목명, GOOGLEFINANCE 티커] 형식
 type StockEntry = [string, string];
 let _stocksCache: StockEntry[] | null = null;
@@ -88,6 +90,18 @@ function formatPriceUpdatedAt(updatedAt?: string): string | undefined {
 
   return date.toLocaleDateString("ko-KR", {
     timeZone: "Asia/Seoul",
+    month: "numeric",
+    day: "numeric",
+  });
+}
+
+function formatValuationUpdatedAt(updatedAt?: string): string | undefined {
+  if (!updatedAt) return undefined;
+  const date = new Date(updatedAt);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toLocaleDateString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
     month: "numeric",
     day: "numeric",
   });
@@ -952,11 +966,14 @@ function AssetRow({
 }: {
   item: AssetItem;
   editable?: boolean;
-  onSave?: (field: "quantity" | "avgPrice", value: number) => Promise<void>;
+  onSave?: (field: EditableAssetField, value: number) => Promise<void>;
   onDelete?: () => Promise<void>;
   todayQuote?: TodayQuote;
 }) {
   const canEdit = editable && !!item.id && !!onSave;
+  const isManual = item.valuationMode === "manual";
+  const canEditMarket = canEdit && !isManual;
+  const valuationDate = formatValuationUpdatedAt(item.valuationUpdatedAt);
   return (
     <tr className="border-b border-[#f0f0f0] dark:border-[#2a3a4a] hover:bg-[#f8f9fc] dark:hover:bg-[#1e2c3a] transition-colors">
       <td className="py-3 px-4">
@@ -967,11 +984,20 @@ function AssetRow({
           >
             {initials(item.name)}
           </span>
-          <span className="font-medium text-sm text-gray-900 dark:text-white">{item.name}</span>
+          <div className="min-w-0">
+            <span className="font-medium text-sm text-gray-900 dark:text-white break-words">{item.name}</span>
+            {isManual && (
+              <div className="mt-1">
+                <span className="inline-flex rounded-full bg-[#eef0ff] dark:bg-[#25304a] px-2 py-0.5 text-[11px] font-medium text-[#3d47cf] dark:text-[#aeb5ff]">
+                  수동 평가{valuationDate ? ` · ${valuationDate}` : ""}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </td>
       <td className="py-3 px-4 text-right text-sm text-gray-500">
-        {canEdit ? (
+        {canEditMarket ? (
           <EditableCell
             value={item.quantity}
             display={item.quantity.toLocaleString("ko-KR")}
@@ -983,7 +1009,7 @@ function AssetRow({
         )}
       </td>
       <td className="py-3 px-4 text-right text-sm text-gray-500">
-        {canEdit ? (
+        {canEditMarket ? (
           <EditableCell
             value={item.avgPrice}
             display={formatKRW(item.avgPrice)}
@@ -996,10 +1022,20 @@ function AssetRow({
       <td className="py-3 px-4 text-right text-sm text-gray-500">
         <div className="flex items-center justify-end gap-1.5">
           <span>{formatKRW(item.currentPrice)}</span>
-          <TodayChangeBadge quote={todayQuote} />
+          {!isManual && <TodayChangeBadge quote={todayQuote} />}
         </div>
       </td>
-      <td className="py-3 px-4 text-right text-sm font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</td>
+      <td className="py-3 px-4 text-right text-sm font-semibold text-gray-900 dark:text-white">
+        {canEdit && isManual ? (
+          <EditableCell
+            value={item.currentValue}
+            display={formatKRW(item.currentValue)}
+            onSave={(v) => onSave!("manualValue", v)}
+          />
+        ) : (
+          formatKRW(item.currentValue)
+        )}
+      </td>
       <td
         className="py-3 px-4 text-right text-sm font-medium"
         style={{ color: rateColor(item.profitLoss) }}
@@ -1023,18 +1059,26 @@ function AssetCard({
 }: {
   item: AssetItem;
   editable?: boolean;
-  onSave?: (field: "quantity" | "avgPrice", value: number) => Promise<void>;
+  onSave?: (field: EditableAssetField, value: number) => Promise<void>;
   onDelete?: () => Promise<void>;
   todayQuote?: TodayQuote;
 }) {
   const canEdit = editable && !!item.id && !!onSave;
+  const isManual = item.valuationMode === "manual";
+  const canEditMarket = canEdit && !isManual;
+  const valuationDate = formatValuationUpdatedAt(item.valuationUpdatedAt);
   return (
     <div className="px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{item.name}</p>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{item.name}</p>
+          {isManual && (
+            <span className="mt-1 inline-flex rounded-full bg-[#eef0ff] dark:bg-[#25304a] px-2 py-0.5 text-[11px] font-medium text-[#3d47cf] dark:text-[#aeb5ff]">
+              수동 평가{valuationDate ? ` · ${valuationDate}` : ""}
+            </span>
+          )}
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
-            {canEdit ? (
+            {canEditMarket ? (
               <EditableCell
                 value={item.quantity}
                 display={item.quantity.toLocaleString("ko-KR")}
@@ -1044,8 +1088,8 @@ function AssetCard({
             ) : (
               <span>{item.quantity.toLocaleString("ko-KR")}</span>
             )}
-            <span>주 · 매입</span>
-            {canEdit ? (
+            <span>{isManual ? "수량 · 매입" : "주 · 매입"}</span>
+            {canEditMarket ? (
               <EditableCell
                 value={item.avgPrice}
                 display={formatKRW(item.avgPrice)}
@@ -1061,14 +1105,22 @@ function AssetCard({
             {formatKRW(item.currentPrice)}
           </div>
           <div className="mt-1 flex justify-end">
-            <TodayChangeBadge quote={todayQuote} />
+            {!isManual && <TodayChangeBadge quote={todayQuote} />}
           </div>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         <div className="flex items-center justify-between gap-2">
           <span className="text-gray-400">평가금액</span>
-          <span className="font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</span>
+          {canEdit && isManual ? (
+            <EditableCell
+              value={item.currentValue}
+              display={formatKRW(item.currentValue)}
+              onSave={(v) => onSave!("manualValue", v)}
+            />
+          ) : (
+            <span className="font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</span>
+          )}
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-gray-400">평가손익</span>
@@ -1082,7 +1134,9 @@ function AssetCard({
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-gray-400">보유수량</span>
-          <span className="font-medium text-gray-700 dark:text-gray-200">{item.quantity.toLocaleString("ko-KR")}주</span>
+          <span className="font-medium text-gray-700 dark:text-gray-200">
+            {item.quantity.toLocaleString("ko-KR")}{isManual ? "" : "주"}
+          </span>
         </div>
       </div>
     </div>
@@ -1233,6 +1287,9 @@ function AddItemModal({
   const [code, setCode] = useState("");
   const [quantity, setQuantity] = useState("");
   const [avgPrice, setAvgPrice] = useState("");
+  const [valuationMode, setValuationMode] = useState<"market" | "manual">("market");
+  const [manualInvestAmount, setManualInvestAmount] = useState("");
+  const [manualValue, setManualValue] = useState("");
   const [results, setResults] = useState<StockEntry[]>([]);
   const [loadingStocks, setLoadingStocks] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -1243,6 +1300,10 @@ function AddItemModal({
 
   async function handleNameChange(value: string) {
     setName(value);
+    if (valuationMode === "manual") {
+      setResults([]);
+      return;
+    }
     if (isComposing.current) return;
     const q = value.trim();
     if (q.length < 1) { setResults([]); return; }
@@ -1265,9 +1326,18 @@ function AddItemModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const qty = parseFloat(quantity.replace(/,/g, ""));
-    const price = parseFloat(avgPrice.replace(/,/g, ""));
-    if (!name.trim() || isNaN(qty) || qty <= 0 || isNaN(price) || price <= 0) {
-      setError("종목명, 수량, 매입가를 올바르게 입력해주세요");
+    const enteredPrice = parseFloat(avgPrice.replace(/,/g, ""));
+    const investAmount = parseFloat(manualInvestAmount.replace(/,/g, ""));
+    const currentValue = parseFloat(manualValue.replace(/,/g, ""));
+    const price = valuationMode === "manual" && qty > 0 ? investAmount / qty : enteredPrice;
+    const invalidMarket = valuationMode === "market" && (isNaN(enteredPrice) || enteredPrice <= 0);
+    const invalidManual = valuationMode === "manual" && (
+      isNaN(investAmount) || investAmount <= 0 || isNaN(currentValue) || currentValue <= 0
+    );
+    if (!name.trim() || isNaN(qty) || qty <= 0 || invalidMarket || invalidManual) {
+      setError(valuationMode === "manual"
+        ? "자산명, 수량, 투자원금, 평가금액을 올바르게 입력해주세요"
+        : "종목명, 수량, 매입가를 올바르게 입력해주세요");
       return;
     }
     if (!accountName.trim()) {
@@ -1289,6 +1359,9 @@ function AddItemModal({
           code: code.trim(),
           quantity: qty,
           avgPrice: price,
+          valuationMode,
+          manualInvestAmount: valuationMode === "manual" ? investAmount : undefined,
+          manualValue: valuationMode === "manual" ? currentValue : undefined,
         }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
@@ -1298,6 +1371,8 @@ function AddItemModal({
       setCode("");
       setQuantity("");
       setAvgPrice("");
+      setManualInvestAmount("");
+      setManualValue("");
       setAccountName("");
       onClose();
     } catch (e) {
@@ -1322,6 +1397,27 @@ function AddItemModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 rounded-lg bg-[#f0f1f5] dark:bg-[#0f1923] p-1" role="group" aria-label="평가 방식">
+            {(["market", "manual"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  setValuationMode(mode);
+                  setResults([]);
+                  setCode("");
+                  setError(null);
+                }}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  valuationMode === mode
+                    ? "bg-white text-[#3d47cf] shadow-sm dark:bg-[#243044] dark:text-[#aeb5ff]"
+                    : "text-gray-500 dark:text-gray-400"
+                }`}
+              >
+                {mode === "market" ? "시장가격" : "수동 평가"}
+              </button>
+            ))}
+          </div>
           {/* 계좌 선택/입력 (기존 계좌 없을 때) */}
           {!account && (
             <div>
@@ -1372,11 +1468,11 @@ function AddItemModal({
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">
               종목명
-              {loadingStocks && <span className="ml-1 text-gray-400 font-normal">종목 목록 로드 중...</span>}
+              {valuationMode === "market" && loadingStocks && <span className="ml-1 text-gray-400 font-normal">종목 목록 로드 중...</span>}
             </label>
             <input
               className="w-full rounded-lg border border-[#e0e0e0] dark:border-[#2a3a4a] bg-[#f8f9fc] dark:bg-[#0f1923] px-3 py-2 text-sm outline-none focus:border-[#3d47cf]"
-              placeholder="삼성전자"
+              placeholder={valuationMode === "manual" ? "예: 퇴직연금 펀드" : "삼성전자"}
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               onCompositionStart={() => { isComposing.current = true; }}
@@ -1386,7 +1482,7 @@ function AddItemModal({
           </div>
 
           {/* 검색 결과 드롭다운 */}
-          {results.length > 0 && (
+          {valuationMode === "market" && results.length > 0 && (
             <div className="rounded-lg border border-[#e0e0e0] dark:border-[#2a3a4a] overflow-hidden -mt-1">
               {results.map(([n, ticker]) => (
                 <button
@@ -1403,7 +1499,7 @@ function AddItemModal({
           )}
 
           {/* 종목 코드 */}
-          <div>
+          {valuationMode === "market" && <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">종목 코드 <span className="font-normal text-gray-400">(GOOGLEFINANCE 형식)</span></label>
             <input
               className="w-full rounded-lg border border-[#e0e0e0] dark:border-[#2a3a4a] bg-[#f8f9fc] dark:bg-[#0f1923] px-3 py-2 text-sm font-mono outline-none focus:border-[#3d47cf]"
@@ -1411,10 +1507,10 @@ function AddItemModal({
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
-          </div>
+          </div>}
 
-          {/* 수량 + 매입가 */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* 수량 + 평가 기준 */}
+          <div className={`grid gap-3 ${valuationMode === "manual" ? "grid-cols-1" : "grid-cols-2"}`}>
             <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">수량</label>
               <input
@@ -1426,7 +1522,7 @@ function AddItemModal({
                 onChange={(e) => setQuantity(e.target.value)}
               />
             </div>
-            <div>
+            {valuationMode === "market" && <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">평균 매입가</label>
               <input
                 type="number"
@@ -1436,8 +1532,35 @@ function AddItemModal({
                 value={avgPrice}
                 onChange={(e) => setAvgPrice(e.target.value)}
               />
-            </div>
+            </div>}
           </div>
+
+          {valuationMode === "manual" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">투자원금</label>
+                <input
+                  type="number"
+                  step="1"
+                  className="w-full rounded-lg border border-[#e0e0e0] dark:border-[#2a3a4a] bg-[#f8f9fc] dark:bg-[#0f1923] px-3 py-2 text-sm outline-none focus:border-[#3d47cf]"
+                  placeholder="10000000"
+                  value={manualInvestAmount}
+                  onChange={(e) => setManualInvestAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">평가금액</label>
+                <input
+                  type="number"
+                  step="1"
+                  className="w-full rounded-lg border border-[#e0e0e0] dark:border-[#2a3a4a] bg-[#f8f9fc] dark:bg-[#0f1923] px-3 py-2 text-sm outline-none focus:border-[#3d47cf]"
+                  placeholder="12000000"
+                  value={manualValue}
+                  onChange={(e) => setManualValue(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="text-xs text-red-500">{error}</p>
@@ -1569,7 +1692,7 @@ export default function DashboardPage() {
   const [todayQuotes, setTodayQuotes] = useState<Record<string, TodayQuote>>({});
   const [todayQuotesLoading, setTodayQuotesLoading] = useState(false);
 
-  async function saveItem(item: AssetItem, field: "quantity" | "avgPrice", value: number) {
+  async function saveItem(item: AssetItem, field: EditableAssetField, value: number) {
     const res = await fetch("/api/assets/item", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1735,10 +1858,13 @@ export default function DashboardPage() {
       if (!ov) return item;
       const quantity = ov.quantity ?? item.quantity;
       const avgPrice = ov.avgPrice ?? item.avgPrice;
-      const investAmount = quantity * avgPrice;
-      const profitLoss = item.currentValue - investAmount;
+      const currentValue = ov.manualValue ?? item.currentValue;
+      const investAmount = item.valuationMode === "manual"
+        ? item.manualInvestAmount ?? item.investAmount
+        : quantity * avgPrice;
+      const profitLoss = currentValue - investAmount;
       const returnRate = investAmount > 0 ? (profitLoss / investAmount) * 100 : 0;
-      return { ...item, quantity, avgPrice, investAmount, profitLoss, returnRate };
+      return { ...item, quantity, avgPrice, currentValue, investAmount, profitLoss, returnRate };
     });
   })();
 
@@ -1866,10 +1992,13 @@ export default function DashboardPage() {
           if (!ov) return item;
           const quantity = ov.quantity ?? item.quantity;
           const avgPrice = ov.avgPrice ?? item.avgPrice;
-          const investAmount = quantity * avgPrice;
-          const profitLoss = item.currentValue - investAmount;
+          const currentValue = ov.manualValue ?? item.currentValue;
+          const investAmount = item.valuationMode === "manual"
+            ? item.manualInvestAmount ?? item.investAmount
+            : quantity * avgPrice;
+          const profitLoss = currentValue - investAmount;
           const returnRate = investAmount > 0 ? (profitLoss / investAmount) * 100 : 0;
-          return { ...item, quantity, avgPrice, investAmount, profitLoss, returnRate };
+          return { ...item, quantity, avgPrice, currentValue, investAmount, profitLoss, returnRate };
         });
       return { account: acct, items };
     });

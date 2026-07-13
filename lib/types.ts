@@ -6,6 +6,10 @@ export interface AssetItem {
   avgPrice: number;
   currentPrice: number;
   priceUpdatedAt?: string;
+  valuationMode?: "market" | "manual";
+  manualInvestAmount?: number;
+  manualValue?: number;
+  valuationUpdatedAt?: string;
   todayChangeRate?: number;
   todayChangeAmount?: number;
   investAmount: number;

@@ -13,6 +13,10 @@ interface AssetRow {
   name: string;
   quantity: number;
   avg_price: number;
+  valuation_mode?: "market" | "manual" | null;
+  manual_invest_amount?: number | null;
+  manual_value?: number | null;
+  valuation_updated_at?: string | null;
 }
 
 interface CashRow {
@@ -104,10 +108,17 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
       } satisfies AssetGroup;
     }
 
-    const priceInfo = prices[asset.code ?? ""];
-    const currentPrice = priceInfo?.price ?? asset.avg_price;
-    const investAmount = asset.quantity * asset.avg_price;
-    const currentValue = asset.quantity * currentPrice;
+    const valuationMode = asset.valuation_mode === "manual" ? "manual" : "market";
+    const priceInfo = valuationMode === "market" ? prices[asset.code ?? ""] : undefined;
+    const investAmount = valuationMode === "manual" && typeof asset.manual_invest_amount === "number"
+      ? asset.manual_invest_amount
+      : asset.quantity * asset.avg_price;
+    const currentValue = valuationMode === "manual" && typeof asset.manual_value === "number"
+      ? asset.manual_value
+      : asset.quantity * (priceInfo?.price ?? asset.avg_price);
+    const currentPrice = asset.quantity > 0
+      ? currentValue / asset.quantity
+      : 0;
     const profitLoss = currentValue - investAmount;
 
     const group = groups[category];
@@ -121,6 +132,10 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
       avgPrice: asset.avg_price,
       currentPrice,
       priceUpdatedAt: priceInfo?.updatedAt,
+      valuationMode,
+      manualInvestAmount: asset.manual_invest_amount ?? undefined,
+      manualValue: asset.manual_value ?? undefined,
+      valuationUpdatedAt: asset.valuation_updated_at ?? undefined,
       investAmount,
       currentValue,
       profitLoss,

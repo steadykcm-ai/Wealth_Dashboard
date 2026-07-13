@@ -36,6 +36,9 @@ interface AssetRow {
   code?: string | null;
   quantity?: number | null;
   avg_price?: number | null;
+  valuation_mode?: "market" | "manual" | null;
+  manual_invest_amount?: number | null;
+  manual_value?: number | null;
 }
 
 interface CashRow {
@@ -135,7 +138,7 @@ async function calculateCategory(
 ): Promise<CategorySummary> {
   const { data: assets, error } = await supabase
     .from("assets")
-    .select("code, quantity, avg_price")
+    .select("code, quantity, avg_price, valuation_mode, manual_invest_amount, manual_value")
     .in("asset_type", assetTypes)
     .eq("is_cash", false)
     .eq("user_id", userId);
@@ -150,10 +153,16 @@ async function calculateCategory(
   (assets as AssetRow[]).forEach((item) => {
     const quantity = Number(item.quantity || 0);
     const avgPrice = Number(item.avg_price || 0);
-    const currentPrice = item.code ? prices[item.code] || avgPrice : avgPrice;
+    const isManual = item.valuation_mode === "manual";
+    const investAmount = isManual && typeof item.manual_invest_amount === "number"
+      ? item.manual_invest_amount
+      : quantity * avgPrice;
+    const currentValue = isManual && typeof item.manual_value === "number"
+      ? item.manual_value
+      : quantity * (item.code ? prices[item.code] || avgPrice : avgPrice);
 
-    invest += quantity * avgPrice;
-    value += quantity * currentPrice;
+    invest += investAmount;
+    value += currentValue;
   });
 
   return {
