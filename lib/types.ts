@@ -123,6 +123,17 @@ export interface AccountDailySnapshot {
   total: number;
 }
 
+export interface BenchmarkPoint {
+  date: string;
+  value: number;
+}
+
+export interface BenchmarkSeries {
+  symbol: "KOSPI" | "SPX";
+  name: string;
+  points: BenchmarkPoint[];
+}
+
 export interface DailyLogItem {
   date: string;
   total: CategorySnapshot;

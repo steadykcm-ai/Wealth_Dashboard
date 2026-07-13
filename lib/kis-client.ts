@@ -34,8 +34,31 @@ interface KisDailyPriceResponse {
   }>;
 }
 
+interface KisDomesticIndexResponse {
+  output2?: Array<{
+    stck_bsop_date?: string;
+    bstp_nmix_prpr?: string;
+  }>;
+}
+
+interface KisOverseasIndexResponse {
+  output2?: Array<{
+    xymd?: string;
+    clos?: string;
+  }>;
+}
+
+export interface KisIndexPoint {
+  date: string;
+  value: number;
+}
+
 function toKisDate(date: string): string {
   return date.replace(/-/g, "");
+}
+
+function toIsoDate(date: string): string {
+  return `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
 }
 
 function shiftIsoDate(date: string, days: number): string {
@@ -215,5 +238,113 @@ export async function fetchKISDailyClose(
     return Number.isFinite(close) && close > 0 ? close : null;
   } catch {
     return null;
+  }
+}
+
+export async function fetchKISDomesticIndexSeries(
+  code: string,
+  startDate: string,
+  endDate: string
+): Promise<KisIndexPoint[]> {
+  try {
+    const appKey = process.env.KIS_APP_KEY;
+    const appSecret = process.env.KIS_APP_SECRET;
+    if (!appKey || !appSecret) throw new Error("KIS credentials not set");
+
+    const token = await getAccessToken();
+    const points = new Map<string, number>();
+    let cursor = endDate;
+
+    for (let page = 0; page < 6; page += 1) {
+      const params = new URLSearchParams({
+        FID_PERIOD_DIV_CODE: "D",
+        FID_COND_MRKT_DIV_CODE: "U",
+        FID_INPUT_ISCD: code,
+        FID_INPUT_DATE_1: toKisDate(cursor),
+      });
+      const response = await fetch(
+        `${BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-index-daily-price?${params.toString()}`,
+        {
+          cache: "no-store",
+          headers: {
+            "authorization": `Bearer ${token}`,
+            "appkey": appKey,
+            "appsecret": appSecret,
+            "tr_id": "FHPUP02120000",
+            "custtype": "P",
+          },
+        }
+      );
+      if (!response.ok) break;
+
+      const data = (await response.json()) as KisDomesticIndexResponse;
+      const rows = data.output2 ?? [];
+      rows.forEach((row) => {
+        const rawDate = row.stck_bsop_date;
+        const value = Number(row.bstp_nmix_prpr);
+        if (!rawDate || !Number.isFinite(value) || value <= 0) return;
+        const date = toIsoDate(rawDate);
+        if (date >= startDate && date <= endDate) points.set(date, value);
+      });
+
+      const oldestDate = rows
+        .map((row) => row.stck_bsop_date)
+        .filter((date): date is string => Boolean(date))
+        .sort()[0];
+      if (!oldestDate || toIsoDate(oldestDate) <= startDate) break;
+      cursor = shiftIsoDate(toIsoDate(oldestDate), -1);
+    }
+
+    return Array.from(points.entries())
+      .map(([date, value]) => ({ date, value }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchKISOverseasIndexSeries(
+  code: string,
+  startDate: string,
+  endDate: string
+): Promise<KisIndexPoint[]> {
+  try {
+    const appKey = process.env.KIS_APP_KEY;
+    const appSecret = process.env.KIS_APP_SECRET;
+    if (!appKey || !appSecret) throw new Error("KIS credentials not set");
+
+    const token = await getAccessToken();
+    const params = new URLSearchParams({
+      FID_COND_MRKT_DIV_CODE: "N",
+      FID_INPUT_ISCD: code,
+      FID_INPUT_DATE_1: toKisDate(startDate),
+      FID_INPUT_DATE_2: toKisDate(endDate),
+      FID_PERIOD_DIV_CODE: "D",
+    });
+    const response = await fetch(
+      `${BASE_URL}/uapi/overseas-price/v1/quotations/inquire-daily-chartprice?${params.toString()}`,
+      {
+        cache: "no-store",
+        headers: {
+          "authorization": `Bearer ${token}`,
+          "appkey": appKey,
+          "appsecret": appSecret,
+          "tr_id": "FHKST03030100",
+          "custtype": "P",
+        },
+      }
+    );
+    if (!response.ok) return [];
+
+    const data = (await response.json()) as KisOverseasIndexResponse;
+    return (data.output2 ?? [])
+      .map((row) => ({
+        date: row.xymd ? toIsoDate(row.xymd) : "",
+        value: Number(row.clos),
+      }))
+      .filter((point) => point.date && Number.isFinite(point.value) && point.value > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
   }
 }

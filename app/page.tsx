@@ -6,7 +6,7 @@ import { useTheme } from "next-themes";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useAssets } from "@/lib/useAssets";
 import { formatKRW, formatRate } from "@/lib/profit-calculator";
-import type { AssetCategory, AssetItem, AssetGroup, BreakdownItem, PortfolioBreakdown, AccountGroup, DailyLogItem } from "@/lib/types";
+import type { AssetCategory, AssetItem, AssetGroup, BreakdownItem, PortfolioBreakdown, AccountGroup, DailyLogItem, BenchmarkSeries } from "@/lib/types";
 
 type ProfitLogMeta = {
   basis: "daily_close";
@@ -296,10 +296,12 @@ function SmallDonutChart({ title, items }: { title: string; items: BreakdownItem
 // ── 자산 추이 차트 ────────────────────────────────────────
 function AssetTrendChart({
   logs,
+  benchmarks,
   meta,
   category,
 }: {
   logs: DailyLogItem[];
+  benchmarks: BenchmarkSeries[];
   meta: ProfitLogMeta | null;
   category: "전체" | "개별주식" | "개인연금";
 }) {
@@ -307,9 +309,15 @@ function AssetTrendChart({
   const prefersReducedMotion = usePrefersReducedMotion();
   const [period, setPeriod] = useState<"1month" | "3month" | "all">("all");
   const [selectedAccount, setSelectedAccount] = useState("전체");
+  const [chartMode, setChartMode] = useState<"assets" | "benchmark">("assets");
+  const [benchmarkSymbol, setBenchmarkSymbol] = useState<"KOSPI" | "SPX">(
+    category === "개별주식" ? "KOSPI" : "SPX"
+  );
 
   useEffect(() => {
     setSelectedAccount("전체");
+    setChartMode("assets");
+    setBenchmarkSymbol(category === "개별주식" ? "KOSPI" : "SPX");
   }, [category]);
 
   const accountCategory = category === "개별주식" ? "stocks" : "pension";
@@ -347,7 +355,7 @@ function AssetTrendChart({
     return [...result].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   })();
 
-  const data = filteredLogs.map((log) => ({
+  const rawData = filteredLogs.map((log) => ({
     date: new Date(log.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }),
     total: log.total.total,
     stocks: log.stocks.total,
@@ -364,6 +372,29 @@ function AssetTrendChart({
   const title = isTotal ? "총자산 추이" : `${category} 자산 추이`;
   const selectedLabel = category === "개별주식" ? "주식" : "연금";
   const selectedColor = category === "개별주식" ? "#26a69a" : "#ff7043";
+  const activeBenchmark = benchmarks.find((benchmark) => benchmark.symbol === benchmarkSymbol);
+  const benchmarkData = (() => {
+    const points = [...(activeBenchmark?.points ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+    let pointIndex = 0;
+    let latestBenchmark: number | null = null;
+    const aligned = rawData.map((row) => {
+      while (pointIndex < points.length && points[pointIndex].date <= row.fullDate) {
+        latestBenchmark = points[pointIndex].value;
+        pointIndex += 1;
+      }
+      return { ...row, benchmarkValue: latestBenchmark };
+    });
+    const base = aligned.find((row) => row.selected !== null && row.selected > 0 && row.benchmarkValue !== null);
+    const portfolioBase = base?.selected ?? null;
+    const benchmarkBase = base?.benchmarkValue ?? null;
+
+    return aligned.map((row) => ({
+      ...row,
+      portfolioIndex: portfolioBase && row.selected !== null ? (row.selected / portfolioBase) * 100 : null,
+      benchmarkIndex: benchmarkBase && row.benchmarkValue !== null ? (row.benchmarkValue / benchmarkBase) * 100 : null,
+    }));
+  })();
+  const data = chartMode === "benchmark" && !isTotal ? benchmarkData : rawData;
 
   const textColor = resolvedTheme === "dark" ? "#d1d5db" : "#111827";
   const gridColor = resolvedTheme === "dark" ? "#2a3a4a" : "#f0f0f0";
@@ -374,12 +405,14 @@ function AssetTrendChart({
     stocks: number;
     pension: number;
     selected: number | null;
+    portfolioIndex?: number | null;
+    benchmarkIndex?: number | null;
     fullDate: string;
   }>) => {
     if (active && payload && payload.length > 0) {
       const chartPayload = payload[0].payload;
       if (!chartPayload) return null;
-      const { total, stocks, pension, selected, fullDate } = chartPayload;
+      const { total, stocks, pension, selected, portfolioIndex, benchmarkIndex, fullDate } = chartPayload;
       return (
         <div className="rounded-md bg-white/90 dark:bg-gray-900/90 px-3 py-2 border border-gray-200 dark:border-gray-700 shadow-md">
           <p className="text-xs font-semibold mb-2" style={{ color: textColor }}>
@@ -389,7 +422,20 @@ function AssetTrendChart({
               day: "2-digit",
             })}
           </p>
-          {isTotal ? (
+          {!isTotal && chartMode === "benchmark" ? (
+            <>
+              {portfolioIndex !== null && portfolioIndex !== undefined && (
+                <p className="text-xs" style={{ color: selectedColor }}>
+                  {selectedAccount === "전체" ? `${selectedLabel} 포트폴리오` : selectedAccount}: {portfolioIndex.toFixed(1)} ({portfolioIndex >= 100 ? "+" : ""}{(portfolioIndex - 100).toFixed(2)}%)
+                </p>
+              )}
+              {benchmarkIndex !== null && benchmarkIndex !== undefined && (
+                <p className="text-xs text-[#3d47cf]">
+                  {activeBenchmark?.name ?? benchmarkSymbol}: {benchmarkIndex.toFixed(1)} ({benchmarkIndex >= 100 ? "+" : ""}{(benchmarkIndex - 100).toFixed(2)}%)
+                </p>
+              )}
+            </>
+          ) : isTotal ? (
             <>
               <p className="text-xs" style={{ color: "#3d47cf" }}>총자산: {formatKRW(total)}</p>
               <p className="text-xs" style={{ color: "#26a69a" }}>주식 총자산: {formatKRW(stocks)}</p>
@@ -417,7 +463,11 @@ function AssetTrendChart({
           </h2>
           <div className="flex flex-1 flex-wrap items-center gap-2 sm:mx-4">
             <span className="rounded-full bg-[#eef1ff] px-2 py-0.5 text-xs font-medium text-[#3d47cf] dark:bg-[#202a48]">
-              {isTotal ? "종가 확정 로그 기준" : "현금 포함 총자산 · 종가 기준"}
+              {isTotal
+                ? "종가 확정 로그 기준"
+                : chartMode === "benchmark"
+                  ? "기준일 100 · 근사 성과"
+                  : "현금 포함 총자산 · 종가 기준"}
             </span>
             {meta?.latestLogDate && (
               <span className="text-xs text-gray-400">
@@ -463,6 +513,44 @@ function AssetTrendChart({
             </button>
           </div>
         </div>
+        {!isTotal && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-grid grid-cols-2 rounded-lg bg-[#f0f1f5] p-1 dark:bg-[#0f1923]" role="group" aria-label="차트 모드">
+              {(["assets", "benchmark"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setChartMode(mode)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    chartMode === mode
+                      ? "bg-white text-[#3d47cf] shadow-sm dark:bg-[#243044] dark:text-[#aeb5ff]"
+                      : "text-gray-500 dark:text-gray-400"
+                  }`}
+                >
+                  {mode === "assets" ? "자산금액" : "벤치마크"}
+                </button>
+              ))}
+            </div>
+            {chartMode === "benchmark" && (
+              <div className="flex gap-2" role="group" aria-label="벤치마크 지수">
+                {benchmarks.map((benchmark) => (
+                  <button
+                    key={benchmark.symbol}
+                    type="button"
+                    onClick={() => setBenchmarkSymbol(benchmark.symbol)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      benchmarkSymbol === benchmark.symbol
+                        ? "border-[#3d47cf] bg-[#eef1ff] text-[#3d47cf] dark:bg-[#202a48]"
+                        : "border-[#e0e0e0] text-gray-500 dark:border-[#2a3a4a] dark:text-gray-400"
+                    }`}
+                  >
+                    {benchmark.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {!isTotal && accountOptions.length > 0 && (
           <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="계좌 선택">
             {["전체", ...accountOptions].map((accountName) => (
@@ -494,7 +582,7 @@ function AssetTrendChart({
               stroke={axisColor}
               style={{ fontSize: "12px" }}
               tick={{ fill: axisColor }}
-              tickFormatter={(v) => formatKRW(v)}
+              tickFormatter={(v) => chartMode === "benchmark" && !isTotal ? Number(v).toFixed(0) : formatKRW(v)}
             />
             <Tooltip
               content={<CustomTooltip />}
@@ -505,6 +593,36 @@ function AssetTrendChart({
                 <Area key={`${period}-total`} type="monotone" dataKey="total" stroke="#3d47cf" strokeWidth={2} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
                 <Area key={`${period}-stocks`} type="monotone" dataKey="stocks" stroke="#26a69a" strokeWidth={1.5} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
                 <Area key={`${period}-pension`} type="monotone" dataKey="pension" stroke="#ff7043" strokeWidth={1.5} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+              </>
+            ) : chartMode === "benchmark" ? (
+              <>
+                <Area
+                  key={`${category}-${selectedAccount}-${benchmarkSymbol}-${period}-portfolio`}
+                  type="monotone"
+                  dataKey="portfolioIndex"
+                  stroke={selectedColor}
+                  strokeWidth={2}
+                  fill="none"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 2 }}
+                  isAnimationActive={!prefersReducedMotion}
+                  animationDuration={600}
+                  animationEasing="ease-out"
+                />
+                <Area
+                  key={`${benchmarkSymbol}-${period}`}
+                  type="monotone"
+                  dataKey="benchmarkIndex"
+                  stroke="#3d47cf"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                  fill="none"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 2 }}
+                  isAnimationActive={!prefersReducedMotion}
+                  animationDuration={600}
+                  animationEasing="ease-out"
+                />
               </>
             ) : (
               <Area
@@ -1752,6 +1870,7 @@ export default function DashboardPage() {
   const [deletedKeys, setDeletedKeys] = useState<Set<string>>(new Set());
   const [addModalAccount, setAddModalAccount] = useState<AccountGroup | "new" | null>(null);
   const [profitLogs, setProfitLogs] = useState<DailyLogItem[]>([]);
+  const [benchmarkSeries, setBenchmarkSeries] = useState<BenchmarkSeries[]>([]);
   const [profitLogMeta, setProfitLogMeta] = useState<ProfitLogMeta | null>(null);
   const [savingProfit, setSavingProfit] = useState(false);
   const [todayQuotes, setTodayQuotes] = useState<Record<string, TodayQuote>>({});
@@ -1807,8 +1926,13 @@ export default function DashboardPage() {
       try {
         const res = await fetch("/api/profits");
         if (res.ok) {
-          const json = (await res.json()) as { data: DailyLogItem[]; meta?: ProfitLogMeta };
+          const json = (await res.json()) as {
+            data: DailyLogItem[];
+            benchmarks?: BenchmarkSeries[];
+            meta?: ProfitLogMeta;
+          };
           setProfitLogs(json.data);
+          setBenchmarkSeries(json.benchmarks ?? []);
           setProfitLogMeta(json.meta ?? null);
         }
       } catch (err) {
@@ -1866,8 +1990,13 @@ export default function DashboardPage() {
       if (res.ok) {
         const newRes = await fetch("/api/profits");
         if (newRes.ok) {
-          const json = (await newRes.json()) as { data: DailyLogItem[]; meta?: ProfitLogMeta };
+          const json = (await newRes.json()) as {
+            data: DailyLogItem[];
+            benchmarks?: BenchmarkSeries[];
+            meta?: ProfitLogMeta;
+          };
           setProfitLogs(json.data);
+          setBenchmarkSeries(json.benchmarks ?? []);
           setProfitLogMeta(json.meta ?? null);
         }
       }
@@ -2139,7 +2268,7 @@ export default function DashboardPage() {
               onTabChange={setActiveTab}
             />
             {/* 총자산 추이 차트 */}
-            <AssetTrendChart logs={profitLogs} meta={profitLogMeta} category="전체" />
+            <AssetTrendChart logs={profitLogs} benchmarks={benchmarkSeries} meta={profitLogMeta} category="전체" />
           </>
         )}
 
@@ -2162,6 +2291,7 @@ export default function DashboardPage() {
         {(activeTab === "개별주식" || activeTab === "개인연금") && (
           <AssetTrendChart
             logs={profitLogs}
+            benchmarks={benchmarkSeries}
             meta={profitLogMeta}
             category={activeTab}
           />

@@ -16,6 +16,13 @@ interface AccountLogRow {
   total: number;
 }
 
+interface BenchmarkLogRow {
+  symbol: "KOSPI" | "SPX";
+  name: string;
+  date: string;
+  value: number;
+}
+
 function getKoreaDateString(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
@@ -57,6 +64,16 @@ export async function GET() {
       .limit(5000);
 
     if (accountError) throw accountError;
+
+    const { data: benchmarkLogs, error: benchmarkError } = await supabase
+      .from("benchmark_daily")
+      .select("symbol, name, date, value")
+      .in("symbol", ["KOSPI", "SPX"])
+      .gte("date", oldestDate)
+      .lte("date", newestDate)
+      .order("date", { ascending: true });
+
+    if (benchmarkError) throw benchmarkError;
 
     const accountsByDate = new Map<string, AccountLogRow[]>();
     ((accountLogs || []) as AccountLogRow[]).forEach((account) => {
@@ -112,9 +129,19 @@ export async function GET() {
 
     const latestLogDate = logs[0]?.date ?? null;
     const today = getKoreaDateString();
+    const benchmarkRows = (benchmarkLogs || []) as BenchmarkLogRow[];
 
     return NextResponse.json({
       data: logs,
+      benchmarks: ([
+        { symbol: "KOSPI" as const, name: "KOSPI" },
+        { symbol: "SPX" as const, name: "S&P 500" },
+      ]).map((benchmark) => ({
+        ...benchmark,
+        points: benchmarkRows
+          .filter((row) => row.symbol === benchmark.symbol)
+          .map((row) => ({ date: row.date, value: Number(row.value || 0) })),
+      })),
       meta: {
         basis: "daily_close",
         latestLogDate,
