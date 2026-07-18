@@ -74,10 +74,14 @@ async function getAccessToken(): Promise<string> {
   }
 
   const storedToken = await readCachedKisToken(now);
-  if (storedToken) {
-    cachedToken = storedToken.accessToken;
-    tokenExpireTime = storedToken.expiresAtMs;
+  if (storedToken.status === "hit") {
+    cachedToken = storedToken.token.accessToken;
+    tokenExpireTime = storedToken.token.expiresAtMs;
     return cachedToken;
+  }
+
+  if (storedToken.status === "unavailable" || storedToken.status === "error") {
+    throw new Error("KIS shared token cache is unavailable");
   }
 
   if (pendingTokenRequest) {
@@ -127,11 +131,14 @@ async function requestAccessToken(): Promise<string> {
     const token = data.access_token;
     if (!token) throw new Error("No access_token in response");
 
-    cachedToken = token;
     const expiresIn = data.expires_in || DEFAULT_TOKEN_EXPIRES_IN_SECONDS;
-    tokenExpireTime = now + expiresIn * 1000 - TOKEN_EXPIRY_BUFFER_MS;
-    await saveCachedKisToken(cachedToken, tokenExpireTime);
-    return cachedToken;
+    const expiresAtMs = now + expiresIn * 1000 - TOKEN_EXPIRY_BUFFER_MS;
+    const saved = await saveCachedKisToken(token, expiresAtMs);
+    if (!saved) throw new Error("Failed to persist KIS access token");
+
+    cachedToken = token;
+    tokenExpireTime = expiresAtMs;
+    return token;
   } catch (err: unknown) {
     throw err;
   }

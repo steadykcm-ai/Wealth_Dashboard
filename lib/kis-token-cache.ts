@@ -12,10 +12,15 @@ export interface CachedKisToken {
   expiresAtMs: number;
 }
 
-export async function readCachedKisToken(nowMs: number): Promise<CachedKisToken | null> {
+export type KisTokenCacheReadResult =
+  | { status: "hit"; token: CachedKisToken }
+  | { status: "miss" }
+  | { status: "unavailable" | "error" };
+
+export async function readCachedKisToken(nowMs: number): Promise<KisTokenCacheReadResult> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
-    return null;
+    return { status: "unavailable" };
   }
 
   const { data, error } = await supabase
@@ -24,31 +29,38 @@ export async function readCachedKisToken(nowMs: number): Promise<CachedKisToken 
     .eq("id", TOKEN_CACHE_ID)
     .maybeSingle<KisTokenCacheRow>();
 
-  if (error || !data) {
-    return null;
+  if (error) {
+    return { status: "error" };
+  }
+
+  if (!data) {
+    return { status: "miss" };
   }
 
   const expiresAtMs = new Date(data.expires_at).getTime();
   if (!Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs) {
-    return null;
+    return { status: "miss" };
   }
 
   return {
-    accessToken: data.access_token,
-    expiresAtMs,
+    status: "hit",
+    token: {
+      accessToken: data.access_token,
+      expiresAtMs,
+    },
   };
 }
 
 export async function saveCachedKisToken(
   accessToken: string,
   expiresAtMs: number
-): Promise<void> {
+): Promise<boolean> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
-    return;
+    return false;
   }
 
-  await supabase.from("kis_token_cache").upsert(
+  const { error } = await supabase.from("kis_token_cache").upsert(
     {
       id: TOKEN_CACHE_ID,
       access_token: accessToken,
@@ -57,4 +69,6 @@ export async function saveCachedKisToken(
     },
     { onConflict: "id" }
   );
+
+  return !error;
 }
