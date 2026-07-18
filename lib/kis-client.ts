@@ -35,6 +35,9 @@ interface KisDailyPriceResponse {
 }
 
 interface KisDomesticIndexResponse {
+  rt_cd?: string;
+  msg_cd?: string;
+  msg1?: string;
   output2?: Array<{
     stck_bsop_date?: string;
     bstp_nmix_prpr?: string;
@@ -42,9 +45,12 @@ interface KisDomesticIndexResponse {
 }
 
 interface KisOverseasIndexResponse {
+  rt_cd?: string;
+  msg_cd?: string;
+  msg1?: string;
   output2?: Array<{
-    xymd?: string;
-    clos?: string;
+    stck_bsop_date?: string;
+    ovrs_nmix_prpr?: string;
   }>;
 }
 
@@ -253,61 +259,65 @@ export async function fetchKISDomesticIndexSeries(
   startDate: string,
   endDate: string
 ): Promise<KisIndexPoint[]> {
-  try {
-    const appKey = process.env.KIS_APP_KEY;
-    const appSecret = process.env.KIS_APP_SECRET;
-    if (!appKey || !appSecret) throw new Error("KIS credentials not set");
+  const appKey = process.env.KIS_APP_KEY;
+  const appSecret = process.env.KIS_APP_SECRET;
+  if (!appKey || !appSecret) throw new Error("KIS credentials not set");
 
-    const token = await getAccessToken();
-    const points = new Map<string, number>();
-    let cursor = endDate;
+  const token = await getAccessToken();
+  const points = new Map<string, number>();
+  let cursor = endDate;
 
-    for (let page = 0; page < 6; page += 1) {
-      const params = new URLSearchParams({
-        FID_PERIOD_DIV_CODE: "D",
-        FID_COND_MRKT_DIV_CODE: "U",
-        FID_INPUT_ISCD: code,
-        FID_INPUT_DATE_1: toKisDate(cursor),
-      });
-      const response = await fetch(
-        `${BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-index-daily-price?${params.toString()}`,
-        {
-          cache: "no-store",
-          headers: {
-            "authorization": `Bearer ${token}`,
-            "appkey": appKey,
-            "appsecret": appSecret,
-            "tr_id": "FHPUP02120000",
-            "custtype": "P",
-          },
-        }
-      );
-      if (!response.ok) break;
-
-      const data = (await response.json()) as KisDomesticIndexResponse;
-      const rows = data.output2 ?? [];
-      rows.forEach((row) => {
-        const rawDate = row.stck_bsop_date;
-        const value = Number(row.bstp_nmix_prpr);
-        if (!rawDate || !Number.isFinite(value) || value <= 0) return;
-        const date = toIsoDate(rawDate);
-        if (date >= startDate && date <= endDate) points.set(date, value);
-      });
-
-      const oldestDate = rows
-        .map((row) => row.stck_bsop_date)
-        .filter((date): date is string => Boolean(date))
-        .sort()[0];
-      if (!oldestDate || toIsoDate(oldestDate) <= startDate) break;
-      cursor = shiftIsoDate(toIsoDate(oldestDate), -1);
+  for (let page = 0; page < 6; page += 1) {
+    const params = new URLSearchParams({
+      FID_PERIOD_DIV_CODE: "D",
+      FID_COND_MRKT_DIV_CODE: "U",
+      FID_INPUT_ISCD: code,
+      FID_INPUT_DATE_1: toKisDate(cursor),
+    });
+    const response = await fetch(
+      `${BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-index-daily-price?${params.toString()}`,
+      {
+        cache: "no-store",
+        headers: {
+          "authorization": `Bearer ${token}`,
+          "appkey": appKey,
+          "appsecret": appSecret,
+          "tr_id": "FHPUP02120000",
+          "custtype": "P",
+        },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`KIS KOSPI request failed: HTTP ${response.status}`);
     }
 
-    return Array.from(points.entries())
-      .map(([date, value]) => ({ date, value }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
-    return [];
+    const data = (await response.json()) as KisDomesticIndexResponse;
+    if (data.rt_cd !== "0") {
+      throw new Error(
+        `KIS KOSPI request failed: ${data.msg_cd ?? "UNKNOWN"} ${data.msg1 ?? ""}`.trim()
+      );
+    }
+
+    const rows = data.output2 ?? [];
+    rows.forEach((row) => {
+      const rawDate = row.stck_bsop_date;
+      const value = Number(row.bstp_nmix_prpr);
+      if (!rawDate || !Number.isFinite(value) || value <= 0) return;
+      const date = toIsoDate(rawDate);
+      if (date >= startDate && date <= endDate) points.set(date, value);
+    });
+
+    const oldestDate = rows
+      .map((row) => row.stck_bsop_date)
+      .filter((date): date is string => Boolean(date))
+      .sort()[0];
+    if (!oldestDate || toIsoDate(oldestDate) <= startDate) break;
+    cursor = shiftIsoDate(toIsoDate(oldestDate), -1);
   }
+
+  return Array.from(points.entries())
+    .map(([date, value]) => ({ date, value }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export async function fetchKISOverseasIndexSeries(
@@ -315,17 +325,20 @@ export async function fetchKISOverseasIndexSeries(
   startDate: string,
   endDate: string
 ): Promise<KisIndexPoint[]> {
-  try {
-    const appKey = process.env.KIS_APP_KEY;
-    const appSecret = process.env.KIS_APP_SECRET;
-    if (!appKey || !appSecret) throw new Error("KIS credentials not set");
+  const appKey = process.env.KIS_APP_KEY;
+  const appSecret = process.env.KIS_APP_SECRET;
+  if (!appKey || !appSecret) throw new Error("KIS credentials not set");
 
-    const token = await getAccessToken();
+  const token = await getAccessToken();
+  const points = new Map<string, number>();
+  let cursor = endDate;
+
+  for (let page = 0; page < 6; page += 1) {
     const params = new URLSearchParams({
       FID_COND_MRKT_DIV_CODE: "N",
       FID_INPUT_ISCD: code,
       FID_INPUT_DATE_1: toKisDate(startDate),
-      FID_INPUT_DATE_2: toKisDate(endDate),
+      FID_INPUT_DATE_2: toKisDate(cursor),
       FID_PERIOD_DIV_CODE: "D",
     });
     const response = await fetch(
@@ -341,17 +354,35 @@ export async function fetchKISOverseasIndexSeries(
         },
       }
     );
-    if (!response.ok) return [];
+    if (!response.ok) {
+      throw new Error(`KIS S&P 500 request failed: HTTP ${response.status}`);
+    }
 
     const data = (await response.json()) as KisOverseasIndexResponse;
-    return (data.output2 ?? [])
-      .map((row) => ({
-        date: row.xymd ? toIsoDate(row.xymd) : "",
-        value: Number(row.clos),
-      }))
-      .filter((point) => point.date && Number.isFinite(point.value) && point.value > 0)
-      .sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
-    return [];
+    if (data.rt_cd !== "0") {
+      throw new Error(
+        `KIS S&P 500 request failed: ${data.msg_cd ?? "UNKNOWN"} ${data.msg1 ?? ""}`.trim()
+      );
+    }
+
+    const rows = data.output2 ?? [];
+    rows.forEach((row) => {
+      const rawDate = row.stck_bsop_date;
+      const value = Number(row.ovrs_nmix_prpr);
+      if (!rawDate || !Number.isFinite(value) || value <= 0) return;
+      const date = toIsoDate(rawDate);
+      if (date >= startDate && date <= endDate) points.set(date, value);
+    });
+
+    const oldestDate = rows
+      .map((row) => row.stck_bsop_date)
+      .filter((date): date is string => Boolean(date))
+      .sort()[0];
+    if (!oldestDate || toIsoDate(oldestDate) <= startDate || rows.length < 100) break;
+    cursor = shiftIsoDate(toIsoDate(oldestDate), -1);
   }
+
+  return Array.from(points.entries())
+    .map(([date, value]) => ({ date, value }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }

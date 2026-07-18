@@ -40,7 +40,7 @@ export async function saveBenchmarkRange(
   endDate: string
 ): Promise<BenchmarkSaveResult> {
   const kospi = await fetchKISDomesticIndexSeries("0001", startDate, endDate);
-  const spx = await fetchKISOverseasIndexSeries(".SPX", startDate, endDate);
+  const spx = await fetchKISOverseasIndexSeries("SPX", startDate, endDate);
   const rows = [
     ...toRows("KOSPI", "KOSPI", kospi),
     ...toRows("SPX", "S&P 500", spx),
