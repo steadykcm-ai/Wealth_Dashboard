@@ -134,6 +134,26 @@ export interface BenchmarkSeries {
   points: BenchmarkPoint[];
 }
 
+export type PortfolioEventCategory = "stocks" | "pension";
+export type PortfolioEventType =
+  | "deposit"
+  | "withdrawal"
+  | "valuation_adjustment"
+  | "ignored";
+
+export interface PortfolioChangeCandidate {
+  date: string;
+  category: PortfolioEventCategory;
+  accountName: string;
+  detectedAmount: number;
+}
+
+export interface PortfolioEvent extends PortfolioChangeCandidate {
+  id: number;
+  amount: number;
+  eventType: PortfolioEventType;
+}
+
 export interface DailyLogItem {
   date: string;
   total: CategorySnapshot;

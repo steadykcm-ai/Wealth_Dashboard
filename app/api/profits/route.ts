@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { createSupabaseServer } from "@/lib/supabase-server";
-import type { DailyLogItem, CategorySnapshot } from "@/lib/types";
+import type {
+  DailyLogItem,
+  CategorySnapshot,
+  PortfolioChangeCandidate,
+  PortfolioEvent,
+  PortfolioEventCategory,
+  PortfolioEventType,
+} from "@/lib/types";
 
 export const revalidate = 0;
 
@@ -21,6 +28,27 @@ interface BenchmarkLogRow {
   name: string;
   date: string;
   value: number;
+}
+
+interface PortfolioEventRow {
+  id: number;
+  date: string;
+  category: PortfolioEventCategory;
+  account_name: string;
+  detected_amount: number;
+  amount: number;
+  event_type: PortfolioEventType;
+}
+
+const MIN_CHANGE_AMOUNT = 500_000;
+const MIN_CHANGE_RATE = 0.01;
+
+function portfolioEventKey(
+  date: string,
+  category: PortfolioEventCategory,
+  accountName: string
+): string {
+  return `${date}|${category}|${accountName}`;
 }
 
 function getKoreaDateString(): string {
@@ -49,7 +77,13 @@ export async function GET() {
     if (error) throw error;
 
     if (!dailyLogs || dailyLogs.length === 0) {
-      return NextResponse.json({ data: [], error: null });
+      return NextResponse.json({
+        data: [],
+        benchmarks: [],
+        portfolioEvents: [],
+        changeCandidates: [],
+        error: null,
+      });
     }
 
     const oldestDate = dailyLogs[dailyLogs.length - 1]?.date;
@@ -74,6 +108,65 @@ export async function GET() {
       .order("date", { ascending: true });
 
     if (benchmarkError) throw benchmarkError;
+
+    const { data: portfolioEventRows, error: portfolioEventError } = await supabaseServer
+      .from("portfolio_events")
+      .select("id, date, category, account_name, detected_amount, amount, event_type")
+      .gte("date", oldestDate)
+      .lte("date", newestDate)
+      .order("date", { ascending: true });
+
+    if (portfolioEventError) throw portfolioEventError;
+
+    const portfolioEvents: PortfolioEvent[] = ((portfolioEventRows || []) as PortfolioEventRow[])
+      .map((event) => ({
+        id: event.id,
+        date: event.date,
+        category: event.category,
+        accountName: event.account_name,
+        detectedAmount: Number(event.detected_amount || 0),
+        amount: Number(event.amount || 0),
+        eventType: event.event_type,
+      }));
+
+    const reviewedKeys = new Set(
+      portfolioEvents.map((event) => portfolioEventKey(event.date, event.category, event.accountName))
+    );
+    const previousByAccount = new Map<string, AccountLogRow>();
+    const changeCandidates: PortfolioChangeCandidate[] = [];
+
+    ([...((accountLogs || []) as AccountLogRow[])]
+      .sort((a, b) => a.date.localeCompare(b.date)))
+      .forEach((account) => {
+        const accountKey = `${account.category}|${account.account_name}`;
+        const previous = previousByAccount.get(accountKey);
+
+        if (previous) {
+          const detectedAmount =
+            Number(account.invest || 0) - Number(previous.invest || 0)
+            + Number(account.cash || 0) - Number(previous.cash || 0);
+          const threshold = Math.max(
+            MIN_CHANGE_AMOUNT,
+            Math.abs(Number(previous.total || 0)) * MIN_CHANGE_RATE
+          );
+          const reviewKey = portfolioEventKey(
+            account.date,
+            account.category,
+            account.account_name
+          );
+
+          if (Math.abs(detectedAmount) >= threshold && !reviewedKeys.has(reviewKey)) {
+            changeCandidates.push({
+              date: account.date,
+              category: account.category,
+              accountName: account.account_name,
+              detectedAmount: Math.round(detectedAmount),
+            });
+          }
+        }
+
+        previousByAccount.set(accountKey, account);
+      });
 
     const accountsByDate = new Map<string, AccountLogRow[]>();
     ((accountLogs || []) as AccountLogRow[]).forEach((account) => {
@@ -142,6 +235,8 @@ export async function GET() {
           .filter((row) => row.symbol === benchmark.symbol)
           .map((row) => ({ date: row.date, value: Number(row.value || 0) })),
       })),
+      portfolioEvents,
+      changeCandidates: changeCandidates.sort((a, b) => b.date.localeCompare(a.date)),
       meta: {
         basis: "daily_close",
         latestLogDate,

@@ -6,7 +6,19 @@ import { useTheme } from "next-themes";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useAssets } from "@/lib/useAssets";
 import { formatKRW, formatRate } from "@/lib/profit-calculator";
-import type { AssetCategory, AssetItem, AssetGroup, BreakdownItem, PortfolioBreakdown, AccountGroup, DailyLogItem, BenchmarkSeries } from "@/lib/types";
+import type {
+  AssetCategory,
+  AssetItem,
+  AssetGroup,
+  BreakdownItem,
+  PortfolioBreakdown,
+  AccountGroup,
+  DailyLogItem,
+  BenchmarkSeries,
+  PortfolioChangeCandidate,
+  PortfolioEvent,
+  PortfolioEventType,
+} from "@/lib/types";
 
 type ProfitLogMeta = {
   basis: "daily_close";
@@ -297,11 +309,13 @@ function SmallDonutChart({ title, items }: { title: string; items: BreakdownItem
 function AssetTrendChart({
   logs,
   benchmarks,
+  events,
   meta,
   category,
 }: {
   logs: DailyLogItem[];
   benchmarks: BenchmarkSeries[];
+  events: PortfolioEvent[];
   meta: ProfitLogMeta | null;
   category: "전체" | "개별주식" | "개인연금";
 }) {
@@ -309,7 +323,7 @@ function AssetTrendChart({
   const prefersReducedMotion = usePrefersReducedMotion();
   const [period, setPeriod] = useState<"1month" | "3month" | "all">("all");
   const [selectedAccount, setSelectedAccount] = useState("전체");
-  const [chartMode, setChartMode] = useState<"assets" | "benchmark">("assets");
+  const [chartMode, setChartMode] = useState<"assets" | "performance" | "benchmark">("assets");
   const [benchmarkSymbol, setBenchmarkSymbol] = useState<"KOSPI" | "SPX">(
     category === "개별주식" ? "KOSPI" : "SPX"
   );
@@ -355,20 +369,22 @@ function AssetTrendChart({
     return [...result].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   })();
 
+  const isTotal = category === "전체";
   const rawData = filteredLogs.map((log) => ({
     date: new Date(log.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }),
     total: log.total.total,
     stocks: log.stocks.total,
     pension: log.pension.total,
-    selected: selectedAccount === "전체"
-      ? (category === "개별주식" ? log.stocks.total : log.pension.total)
+    selected: isTotal
+      ? log.total.total
+      : selectedAccount === "전체"
+        ? (category === "개별주식" ? log.stocks.total : log.pension.total)
       : log.accounts.find(
         (account) => account.category === accountCategory && account.accountName === selectedAccount
       )?.total ?? null,
     fullDate: log.date,
   }));
 
-  const isTotal = category === "전체";
   const title = isTotal ? "총자산 추이" : `${category} 자산 추이`;
   const selectedLabel = category === "개별주식" ? "주식" : "연금";
   const selectedColor = category === "개별주식" ? "#26a69a" : "#ff7043";
@@ -394,7 +410,61 @@ function AssetTrendChart({
       benchmarkIndex: benchmarkBase && row.benchmarkValue !== null ? (row.benchmarkValue / benchmarkBase) * 100 : null,
     }));
   })();
-  const data = chartMode === "benchmark" && !isTotal ? benchmarkData : rawData;
+  const performanceData = (() => {
+    const relevantEvents = events
+      .filter((event) => event.eventType !== "ignored")
+      .filter((event) => isTotal || event.category === accountCategory)
+      .filter((event) => selectedAccount === "전체" || event.accountName === selectedAccount)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    let eventIndex = 0;
+    let cumulativeNetFlow = 0;
+    let cumulativeValuationAdjustment = 0;
+
+    const aligned = rawData.map((row) => {
+      while (eventIndex < relevantEvents.length && relevantEvents[eventIndex].date <= row.fullDate) {
+        const event = relevantEvents[eventIndex];
+        if (event.eventType === "deposit" || event.eventType === "withdrawal") {
+          cumulativeNetFlow += event.amount;
+        } else if (event.eventType === "valuation_adjustment") {
+          cumulativeValuationAdjustment += event.amount;
+        }
+        eventIndex += 1;
+      }
+      return { ...row, cumulativeNetFlow, cumulativeValuationAdjustment };
+    });
+
+    const base = aligned.find((row) => row.selected !== null);
+    const baseValue = base?.selected ?? null;
+    const baseNetFlow = base?.cumulativeNetFlow ?? 0;
+    const baseValuationAdjustment = base?.cumulativeValuationAdjustment ?? 0;
+
+    return aligned.map((row) => {
+      const assetChange = baseValue !== null && row.selected !== null
+        ? row.selected - baseValue
+        : null;
+      const netFlow = row.cumulativeNetFlow - baseNetFlow;
+      const valuationAdjustment = row.cumulativeValuationAdjustment - baseValuationAdjustment;
+      return {
+        ...row,
+        assetChange,
+        netFlow,
+        valuationAdjustment,
+        investmentProfit: assetChange === null
+          ? null
+          : assetChange - netFlow - valuationAdjustment,
+      };
+    });
+  })();
+  const data = chartMode === "performance"
+    ? performanceData
+    : chartMode === "benchmark" && !isTotal
+      ? benchmarkData
+      : rawData;
+  const latestInvestmentProfit = performanceData
+    .map((row) => row.investmentProfit)
+    .filter((value): value is number => value !== null)
+    .at(-1) ?? 0;
+  const investmentProfitColor = latestInvestmentProfit >= 0 ? "#f44336" : "#1565c0";
 
   const textColor = resolvedTheme === "dark" ? "#d1d5db" : "#111827";
   const gridColor = resolvedTheme === "dark" ? "#2a3a4a" : "#f0f0f0";
@@ -407,12 +477,28 @@ function AssetTrendChart({
     selected: number | null;
     portfolioIndex?: number | null;
     benchmarkIndex?: number | null;
+    assetChange?: number | null;
+    netFlow?: number;
+    valuationAdjustment?: number;
+    investmentProfit?: number | null;
     fullDate: string;
   }>) => {
     if (active && payload && payload.length > 0) {
       const chartPayload = payload[0].payload;
       if (!chartPayload) return null;
-      const { total, stocks, pension, selected, portfolioIndex, benchmarkIndex, fullDate } = chartPayload;
+      const {
+        total,
+        stocks,
+        pension,
+        selected,
+        portfolioIndex,
+        benchmarkIndex,
+        assetChange,
+        netFlow,
+        valuationAdjustment,
+        investmentProfit,
+        fullDate,
+      } = chartPayload;
       return (
         <div className="rounded-md bg-white/90 dark:bg-gray-900/90 px-3 py-2 border border-gray-200 dark:border-gray-700 shadow-md">
           <p className="text-xs font-semibold mb-2" style={{ color: textColor }}>
@@ -422,7 +508,16 @@ function AssetTrendChart({
               day: "2-digit",
             })}
           </p>
-          {!isTotal && chartMode === "benchmark" ? (
+          {chartMode === "performance" ? (
+            <>
+              <p className="text-xs text-[#3d47cf]">자산 증감: {formatKRW(assetChange ?? 0)}</p>
+              <p className="text-xs text-[#26a69a]">순입출금: {formatKRW(netFlow ?? 0)}</p>
+              <p className="text-xs text-gray-500">평가조정: {formatKRW(valuationAdjustment ?? 0)}</p>
+              <p className="text-xs" style={{ color: investmentProfitColor }}>
+                투자수익: {formatKRW(investmentProfit ?? 0)}
+              </p>
+            </>
+          ) : !isTotal && chartMode === "benchmark" ? (
             <>
               {portfolioIndex !== null && portfolioIndex !== undefined && (
                 <p className="text-xs" style={{ color: selectedColor }}>
@@ -464,9 +559,11 @@ function AssetTrendChart({
           <div className="flex flex-1 flex-wrap items-center gap-2 sm:mx-4">
             <span className="rounded-full bg-[#eef1ff] px-2 py-0.5 text-xs font-medium text-[#3d47cf] dark:bg-[#202a48]">
               {isTotal
-                ? "종가 확정 로그 기준"
+                ? chartMode === "performance" ? "기준일 이후 증감" : "종가 확정 로그 기준"
                 : chartMode === "benchmark"
                   ? "기준일 100 · 근사 성과"
+                  : chartMode === "performance"
+                    ? "입출금·평가조정 제외"
                   : "현금 포함 총자산 · 종가 기준"}
             </span>
             {meta?.latestLogDate && (
@@ -513,10 +610,12 @@ function AssetTrendChart({
             </button>
           </div>
         </div>
-        {!isTotal && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div className="inline-grid grid-cols-2 rounded-lg bg-[#f0f1f5] p-1 dark:bg-[#0f1923]" role="group" aria-label="차트 모드">
-              {(["assets", "benchmark"] as const).map((mode) => (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className={`inline-grid ${isTotal ? "grid-cols-2" : "grid-cols-3"} rounded-lg bg-[#f0f1f5] p-1 dark:bg-[#0f1923]`} role="group" aria-label="차트 모드">
+              {(isTotal
+                ? (["assets", "performance"] as const)
+                : (["assets", "performance", "benchmark"] as const)
+              ).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -527,7 +626,7 @@ function AssetTrendChart({
                       : "text-gray-500 dark:text-gray-400"
                   }`}
                 >
-                  {mode === "assets" ? "자산금액" : "벤치마크"}
+                  {mode === "assets" ? "자산금액" : mode === "performance" ? "성과분리" : "벤치마크"}
                 </button>
               ))}
             </div>
@@ -549,8 +648,7 @@ function AssetTrendChart({
                 ))}
               </div>
             )}
-          </div>
-        )}
+        </div>
         {!isTotal && accountOptions.length > 0 && (
           <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="계좌 선택">
             {["전체", ...accountOptions].map((accountName) => (
@@ -567,6 +665,14 @@ function AssetTrendChart({
                 {accountName}
               </button>
             ))}
+          </div>
+        )}
+        {chartMode === "performance" && (
+          <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+            <span><span className="mr-1 inline-block h-2 w-2 bg-[#3d47cf]" />자산 증감</span>
+            <span><span className="mr-1 inline-block h-2 w-2 bg-[#26a69a]" />순입출금</span>
+            <span><span className="mr-1 inline-block h-2 w-2 bg-[#9e9e9e]" />평가조정</span>
+            <span><span className="mr-1 inline-block h-2 w-2" style={{ background: investmentProfitColor }} />투자수익</span>
           </div>
         )}
         <ResponsiveContainer width="100%" height={300}>
@@ -588,7 +694,14 @@ function AssetTrendChart({
               content={<CustomTooltip />}
               cursor={{ stroke: axisColor, strokeDasharray: "4 4", strokeWidth: 1 }}
             />
-            {isTotal ? (
+            {chartMode === "performance" ? (
+              <>
+                <Area key={`${category}-${selectedAccount}-${period}-asset-change`} type="monotone" dataKey="assetChange" stroke="#3d47cf" strokeWidth={2} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+                <Area key={`${category}-${selectedAccount}-${period}-net-flow`} type="monotone" dataKey="netFlow" stroke="#26a69a" strokeWidth={1.5} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+                <Area key={`${category}-${selectedAccount}-${period}-valuation-adjustment`} type="monotone" dataKey="valuationAdjustment" stroke="#9e9e9e" strokeWidth={1.5} strokeDasharray="3 3" fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+                <Area key={`${category}-${selectedAccount}-${period}-investment-profit`} type="monotone" dataKey="investmentProfit" stroke={investmentProfitColor} strokeWidth={2} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+              </>
+            ) : isTotal ? (
               <>
                 <Area key={`${period}-total`} type="monotone" dataKey="total" stroke="#3d47cf" strokeWidth={2} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
                 <Area key={`${period}-stocks`} type="monotone" dataKey="stocks" stroke="#26a69a" strokeWidth={1.5} fill="none" activeDot={{ r: 4, strokeWidth: 2 }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
@@ -1862,6 +1975,130 @@ function AccountsOverview({
 }
 
 // ── 메인 페이지 ─────────────────────────────────────────
+function changeCandidateKey(candidate: PortfolioChangeCandidate): string {
+  return `${candidate.date}|${candidate.category}|${candidate.accountName}`;
+}
+
+function PortfolioEventReviewModal({
+  open,
+  candidates,
+  savingKey,
+  error,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  candidates: PortfolioChangeCandidate[];
+  savingKey: string | null;
+  error: string | null;
+  onClose: () => void;
+  onSave: (
+    candidate: PortfolioChangeCandidate,
+    eventType: PortfolioEventType,
+    amount: number
+  ) => Promise<void>;
+}) {
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setAmounts((previous) => {
+      const next = { ...previous };
+      candidates.forEach((candidate) => {
+        const key = changeCandidateKey(candidate);
+        if (next[key] === undefined) next[key] = `${candidate.detectedAmount}`;
+      });
+      return next;
+    });
+  }, [candidates]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="portfolio-event-review-title"
+        className="w-full max-w-2xl overflow-hidden rounded-xl border border-[#e0e0e0] bg-white shadow-xl dark:border-[#2a3a4a] dark:bg-[#1a2332]"
+      >
+        <div className="flex items-center justify-between border-b border-[#e0e0e0] px-4 py-3 dark:border-[#2a3a4a]">
+          <h2 id="portfolio-event-review-title" className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            변동 확인
+          </h2>
+          <button
+            type="button"
+            aria-label="닫기"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center text-xl text-gray-500 hover:text-gray-900 dark:hover:text-white"
+          >
+            ×
+          </button>
+        </div>
+
+        {error && (
+          <p role="alert" className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+            {error}
+          </p>
+        )}
+
+        <div className="max-h-[70vh] overflow-y-auto">
+          {candidates.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-gray-500">확인할 변동이 없습니다.</p>
+          ) : candidates.map((candidate) => {
+            const key = changeCandidateKey(candidate);
+            const amount = Number(amounts[key] ?? candidate.detectedAmount);
+            const isSaving = savingKey === key;
+            return (
+              <div key={key} className="border-b border-[#f0f0f0] px-4 py-4 last:border-b-0 dark:border-[#2a3a4a]">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{candidate.accountName}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {new Date(candidate.date).toLocaleDateString("ko-KR")} · {candidate.category === "stocks" ? "개별주식" : "개인연금"}
+                    </p>
+                  </div>
+                  <input
+                    type="number"
+                    value={amounts[key] ?? `${candidate.detectedAmount}`}
+                    onChange={(event) => setAmounts((previous) => ({
+                      ...previous,
+                      [key]: event.target.value,
+                    }))}
+                    aria-label={`${candidate.accountName} 변동 금액`}
+                    className="w-36 rounded-md border border-[#d6d9e0] bg-white px-3 py-2 text-right text-sm font-semibold text-gray-900 dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-gray-100"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {([
+                    ["deposit", "입금"],
+                    ["withdrawal", "출금"],
+                    ["valuation_adjustment", "평가액 수정"],
+                    ["ignored", "무시"],
+                  ] as const).map(([eventType, label]) => (
+                    <button
+                      key={eventType}
+                      type="button"
+                      disabled={isSaving || (eventType !== "ignored" && (!Number.isFinite(amount) || amount === 0))}
+                      onClick={() => onSave(candidate, eventType, eventType === "ignored" ? 0 : amount)}
+                      className={`rounded-md border px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                        eventType === "valuation_adjustment"
+                          ? "border-[#3d47cf] bg-[#eef1ff] text-[#3d47cf] dark:bg-[#202a48]"
+                          : "border-[#d6d9e0] text-gray-700 hover:bg-gray-50 dark:border-[#3a4658] dark:text-gray-200 dark:hover:bg-[#243044]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { data, loading, error, refreshing, refetch } = useAssets();
   const [activeTab, setActiveTab] = useState<string>("전체");
@@ -1871,6 +2108,11 @@ export default function DashboardPage() {
   const [addModalAccount, setAddModalAccount] = useState<AccountGroup | "new" | null>(null);
   const [profitLogs, setProfitLogs] = useState<DailyLogItem[]>([]);
   const [benchmarkSeries, setBenchmarkSeries] = useState<BenchmarkSeries[]>([]);
+  const [portfolioEvents, setPortfolioEvents] = useState<PortfolioEvent[]>([]);
+  const [changeCandidates, setChangeCandidates] = useState<PortfolioChangeCandidate[]>([]);
+  const [eventReviewOpen, setEventReviewOpen] = useState(false);
+  const [savingEventKey, setSavingEventKey] = useState<string | null>(null);
+  const [eventSaveError, setEventSaveError] = useState<string | null>(null);
   const [profitLogMeta, setProfitLogMeta] = useState<ProfitLogMeta | null>(null);
   const [savingProfit, setSavingProfit] = useState(false);
   const [todayQuotes, setTodayQuotes] = useState<Record<string, TodayQuote>>({});
@@ -1929,10 +2171,14 @@ export default function DashboardPage() {
           const json = (await res.json()) as {
             data: DailyLogItem[];
             benchmarks?: BenchmarkSeries[];
+            portfolioEvents?: PortfolioEvent[];
+            changeCandidates?: PortfolioChangeCandidate[];
             meta?: ProfitLogMeta;
           };
           setProfitLogs(json.data);
           setBenchmarkSeries(json.benchmarks ?? []);
+          setPortfolioEvents(json.portfolioEvents ?? []);
+          setChangeCandidates(json.changeCandidates ?? []);
           setProfitLogMeta(json.meta ?? null);
         }
       } catch (err) {
@@ -1940,6 +2186,47 @@ export default function DashboardPage() {
       }
     })();
   }, []);
+
+  async function savePortfolioEvent(
+    candidate: PortfolioChangeCandidate,
+    eventType: PortfolioEventType,
+    amount: number
+  ) {
+    const key = changeCandidateKey(candidate);
+    setSavingEventKey(key);
+    setEventSaveError(null);
+    try {
+      const res = await fetch("/api/portfolio-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...candidate, eventType, amount }),
+      });
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? "변동 저장 실패");
+      }
+
+      const refreshed = await fetch("/api/profits", { cache: "no-store" });
+      if (!refreshed.ok) throw new Error("성과 데이터 갱신 실패");
+      const json = (await refreshed.json()) as {
+        data: DailyLogItem[];
+        benchmarks?: BenchmarkSeries[];
+        portfolioEvents?: PortfolioEvent[];
+        changeCandidates?: PortfolioChangeCandidate[];
+        meta?: ProfitLogMeta;
+      };
+      setProfitLogs(json.data);
+      setBenchmarkSeries(json.benchmarks ?? []);
+      setPortfolioEvents(json.portfolioEvents ?? []);
+      setChangeCandidates(json.changeCandidates ?? []);
+      setProfitLogMeta(json.meta ?? null);
+      if ((json.changeCandidates ?? []).length === 0) setEventReviewOpen(false);
+    } catch (error) {
+      setEventSaveError(error instanceof Error ? error.message : "변동 저장 실패");
+    } finally {
+      setSavingEventKey(null);
+    }
+  }
 
   async function saveProfit() {
     if (!data?.summary || savingProfit) return;
@@ -1993,10 +2280,14 @@ export default function DashboardPage() {
           const json = (await newRes.json()) as {
             data: DailyLogItem[];
             benchmarks?: BenchmarkSeries[];
+            portfolioEvents?: PortfolioEvent[];
+            changeCandidates?: PortfolioChangeCandidate[];
             meta?: ProfitLogMeta;
           };
           setProfitLogs(json.data);
           setBenchmarkSeries(json.benchmarks ?? []);
+          setPortfolioEvents(json.portfolioEvents ?? []);
+          setChangeCandidates(json.changeCandidates ?? []);
           setProfitLogMeta(json.meta ?? null);
         }
       }
@@ -2258,6 +2549,22 @@ export default function DashboardPage() {
           />
         </div>
 
+        {changeCandidates.length > 0 && (
+          <div className="mx-4 mb-4 flex items-center justify-between gap-3 border-y border-amber-200 bg-amber-50 px-3 py-2.5 md:mx-0 dark:border-amber-900/60 dark:bg-amber-950/30">
+            <div>
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">변동 확인</p>
+              <p className="text-xs text-amber-700 dark:text-amber-300">{changeCandidates.length}건</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEventReviewOpen(true)}
+              className="rounded-md bg-amber-700 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800"
+            >
+              확인
+            </button>
+          </div>
+        )}
+
         {/* 전체 탭: 포트폴리오 구성 섹션 */}
         {activeTab === "전체" && (
           <>
@@ -2268,7 +2575,7 @@ export default function DashboardPage() {
               onTabChange={setActiveTab}
             />
             {/* 총자산 추이 차트 */}
-            <AssetTrendChart logs={profitLogs} benchmarks={benchmarkSeries} meta={profitLogMeta} category="전체" />
+            <AssetTrendChart logs={profitLogs} benchmarks={benchmarkSeries} events={portfolioEvents} meta={profitLogMeta} category="전체" />
           </>
         )}
 
@@ -2292,6 +2599,7 @@ export default function DashboardPage() {
           <AssetTrendChart
             logs={profitLogs}
             benchmarks={benchmarkSeries}
+            events={portfolioEvents}
             meta={profitLogMeta}
             category={activeTab}
           />
@@ -2577,6 +2885,18 @@ export default function DashboardPage() {
           </p>
         )}
       </main>
+
+      <PortfolioEventReviewModal
+        open={eventReviewOpen}
+        candidates={changeCandidates}
+        savingKey={savingEventKey}
+        error={eventSaveError}
+        onClose={() => {
+          setEventReviewOpen(false);
+          setEventSaveError(null);
+        }}
+        onSave={savePortfolioEvent}
+      />
 
       {/* 종목 추가 모달 */}
       {addModalAccount !== null && isEditable && (() => {
