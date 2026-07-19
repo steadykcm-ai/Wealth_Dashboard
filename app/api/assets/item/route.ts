@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
 export async function POST(req: NextRequest) {
   try {
     const supabaseServer = await createSupabaseServer();
-    const { data: { session } } = await supabaseServer.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await req.json() as {
@@ -54,7 +53,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { data, error } = await supabase.from("assets").insert([
+    const { data, error } = await supabaseServer.from("assets").insert([
       {
         asset_type: assetType,
         account_name: accountName,
@@ -63,7 +62,7 @@ export async function POST(req: NextRequest) {
         quantity,
         avg_price: avgPrice,
         is_cash: false,
-        user_id: session.user.id,
+        user_id: user.id,
         valuation_mode: valuationMode,
         manual_invest_amount: valuationMode === "manual" ? manualInvestAmount : null,
         manual_value: valuationMode === "manual" ? manualValue : null,
@@ -83,8 +82,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const supabaseServer = await createSupabaseServer();
-    const { data: { session } } = await supabaseServer.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -116,11 +115,11 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "지원하지 않는 필드" }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseServer
       .from("assets")
       .update(updateData)
       .eq("id", id)
-      .eq("user_id", session.user.id);
+      .eq("user_id", user.id);
 
     if (error) throw error;
 
@@ -134,8 +133,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const supabaseServer = await createSupabaseServer();
-    const { data: { session } } = await supabaseServer.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -146,11 +145,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID 누락" }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseServer
       .from("assets")
       .delete()
       .eq("id", id)
-      .eq("user_id", session.user.id);
+      .eq("user_id", user.id);
 
     if (error) throw error;
 

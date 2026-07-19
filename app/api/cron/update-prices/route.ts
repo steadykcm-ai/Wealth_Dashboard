@@ -1,20 +1,28 @@
-import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { NextRequest, NextResponse } from "next/server";
 import { fetchStockPrices } from "@/lib/price-fetcher";
+import { createSupabaseServer } from "@/lib/supabase-server";
+import { getRequiredSupabaseAdminClient } from "@/lib/supabase-admin";
+import { isValidCronRequest } from "@/lib/cron-auth";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const revalidate = 0;
 
-async function updatePricesCache() {
-  const { data: assets, error: assetsError } = await supabase
+async function updatePricesCache(supabase: SupabaseClient, userId: string | null) {
+  let assetsQuery = supabase
     .from("assets")
     .select("code, name")
     .eq("is_cash", false);
+  if (userId) assetsQuery = assetsQuery.eq("user_id", userId);
+
+  const { data: assets, error: assetsError } = await assetsQuery;
 
   if (assetsError) throw assetsError;
 
-  const codes = (assets || [])
-    .map((a) => a.code)
-    .filter((c) => c && typeof c === "string");
+  const codes = Array.from(new Set(
+    (assets || [])
+      .map((asset) => asset.code)
+      .filter((code): code is string => typeof code === "string" && code.length > 0)
+  ));
 
   if (codes.length === 0) {
     return { message: "No codes to update", updated: 0 };
@@ -55,9 +63,22 @@ async function updatePricesCache() {
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const result = await updatePricesCache();
+    const cronAuthorized = isValidCronRequest(req);
+    let userId: string | null = null;
+
+    if (!cronAuthorized) {
+      const supabaseServer = await createSupabaseServer();
+      const { data: { user } } = await supabaseServer.auth.getUser();
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      userId = user.id;
+    }
+
+    const admin = getRequiredSupabaseAdminClient();
+    const result = await updatePricesCache(admin, userId);
     return NextResponse.json(result, { status: 200 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "서버 오류";

@@ -1,5 +1,7 @@
-import { supabase } from "@/lib/supabase";
+import { getRequiredSupabaseAdminClient } from "@/lib/supabase-admin";
 import { fetchKISDailyClose } from "@/lib/kis-client";
+
+const supabase = getRequiredSupabaseAdminClient();
 
 interface CategorySummary {
   invest: number;

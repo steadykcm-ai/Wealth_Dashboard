@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { createSupabaseServer } from "@/lib/supabase-server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AccountGroup, AssetCategory, AssetGroup, AssetItem, AssetSummary } from "@/lib/types";
 
 export const revalidate = 0;
@@ -42,7 +42,10 @@ function toAssetCategory(assetType: string): AssetCategory {
   return "개인연금";
 }
 
-async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSummary> {
+async function buildAssetSummaryFromSupabase(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<AssetSummary> {
   const { data: assets, error } = await supabase
     .from("assets")
     .select("*")
@@ -212,12 +215,12 @@ async function buildAssetSummaryFromSupabase(userId: string): Promise<AssetSumma
 export async function GET() {
   try {
     const supabaseServer = await createSupabaseServer();
-    const { data: { session } } = await supabaseServer.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const summary = await buildAssetSummaryFromSupabase(session.user.id);
+    const summary = await buildAssetSummaryFromSupabase(supabaseServer, user.id);
 
     const response = {
       summary,

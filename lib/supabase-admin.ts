@@ -26,3 +26,13 @@ export function getSupabaseAdminClient(): SupabaseClient | null {
 
   return adminClient;
 }
+
+export function getRequiredSupabaseAdminClient(): SupabaseClient {
+  const client = getSupabaseAdminClient();
+  if (!client) {
+    throw new Error(
+      "환경변수 SUPABASE_URL과 SUPABASE_SECRET_KEY 또는 SUPABASE_SERVICE_ROLE_KEY가 필요합니다."
+    );
+  }
+  return client;
+}

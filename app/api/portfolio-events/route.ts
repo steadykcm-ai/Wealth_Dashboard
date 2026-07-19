@@ -21,8 +21,8 @@ function isIsoDate(value: string): boolean {
 export async function POST(req: NextRequest) {
   try {
     const supabaseServer = await createSupabaseServer();
-    const { data: { session } } = await supabaseServer.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabaseServer
       .from("portfolio_events")
       .upsert({
-        user_id: session.user.id,
+        user_id: user.id,
         date,
         category,
         account_name: accountName,

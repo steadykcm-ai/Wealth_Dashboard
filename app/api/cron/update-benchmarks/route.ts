@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveBenchmarkRange } from "@/lib/benchmarks";
+import { isValidCronRequest } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,10 @@ function isIsoDate(value: string): boolean {
 
 export async function GET(req: NextRequest) {
   try {
+    if (!isValidCronRequest(req)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const today = getKoreaDateString();
     const startDate = req.nextUrl.searchParams.get("start") ?? today;
     const endDate = req.nextUrl.searchParams.get("end") ?? today;

@@ -1,9 +1,11 @@
-import { supabase } from "@/lib/supabase";
+import { getRequiredSupabaseAdminClient } from "@/lib/supabase-admin";
 import {
   fetchKISDomesticIndexSeries,
   fetchKISOverseasIndexSeries,
   type KisIndexPoint,
 } from "@/lib/kis-client";
+
+const supabase = getRequiredSupabaseAdminClient();
 
 interface BenchmarkRow {
   symbol: "KOSPI" | "SPX";

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import type {
   DailyLogItem,
@@ -63,14 +62,14 @@ function getKoreaDateString(): string {
 export async function GET() {
   try {
     const supabaseServer = await createSupabaseServer();
-    const { data: { session } } = await supabaseServer.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const { data: dailyLogs, error } = await supabase
+    const { data: dailyLogs, error } = await supabaseServer
       .from("daily_log")
       .select("*")
-      .eq("user_id", session.user.id)
+      .eq("user_id", user.id)
       .order("date", { ascending: false })
       .limit(365);
 
@@ -88,10 +87,10 @@ export async function GET() {
 
     const oldestDate = dailyLogs[dailyLogs.length - 1]?.date;
     const newestDate = dailyLogs[0]?.date;
-    const { data: accountLogs, error: accountError } = await supabase
+    const { data: accountLogs, error: accountError } = await supabaseServer
       .from("daily_account_log")
       .select("date, category, account_name, invest, value, cash, profit, total")
-      .eq("user_id", session.user.id)
+      .eq("user_id", user.id)
       .gte("date", oldestDate)
       .lte("date", newestDate)
       .order("date", { ascending: false })
@@ -99,7 +98,7 @@ export async function GET() {
 
     if (accountError) throw accountError;
 
-    const { data: benchmarkLogs, error: benchmarkError } = await supabase
+    const { data: benchmarkLogs, error: benchmarkError } = await supabaseServer
       .from("benchmark_daily")
       .select("symbol, name, date, value")
       .in("symbol", ["KOSPI", "SPX"])

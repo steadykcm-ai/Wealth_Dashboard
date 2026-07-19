@@ -26,9 +26,18 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json(
+      { error: "Supabase authentication environment variables are missing" },
+      { status: 500 }
+    );
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {
@@ -43,22 +52,19 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  let session = null;
+  let user = null;
   try {
-    // 세션 확인 (3초 타임아웃)
-    const sessionPromise = supabase.auth.getSession();
-    const timeoutPromise = new Promise((_, reject) =>
+    const userPromise = supabase.auth.getUser();
+    const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Session check timeout")), 3000)
     );
-    const { data } = await Promise.race([sessionPromise, timeoutPromise]) as any;
-    session = data?.session;
-  } catch (err) {
-    // 세션 확인 실패 시 로그인 페이지로 리다이렉트
-    console.error("Session check error:", err);
+    const { data } = await Promise.race([userPromise, timeoutPromise]);
+    user = data.user;
+  } catch {
+    user = null;
   }
 
-  // 세션 없으면 로그인 페이지로 리다이렉트
-  if (!session) {
+  if (!user) {
     return NextResponse.redirect(
       new URL(`/login?next=${encodeURIComponent(requestUrl.pathname)}`, requestUrl)
     );

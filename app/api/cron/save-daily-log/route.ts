@@ -1,5 +1,7 @@
+import type { NextRequest } from "next/server";
 import { saveDailyLog } from "@/lib/daily-calculator";
 import { saveBenchmarkRange } from "@/lib/benchmarks";
+import { isValidCronRequest } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +14,12 @@ function getKoreaDateString(): string {
   }).format(new Date());
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    if (!isValidCronRequest(req)) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Jake의 user_id로 고정
     const OWNER_USER_ID = "56701cc8-3dff-405d-a2b7-1ff4301e92cc";
 

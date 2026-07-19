@@ -1,9 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { isValidCronRequest } from "@/lib/cron-auth";
 
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    if (!isValidCronRequest(req)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
     // /api/crypto 호출해서 캐시 생성

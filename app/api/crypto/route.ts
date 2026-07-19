@@ -49,14 +49,14 @@ async function buildExchange(exchangeName: string, holdings: { currency: string;
 export async function GET() {
   try {
     const supabaseServer = await createSupabaseServer();
-    const { data: { session } } = await supabaseServer.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Jake만 암호화폐 데이터 조회 가능 (다른 사용자는 빈 응답)
     const OWNER_USER_ID = "56701cc8-3dff-405d-a2b7-1ff4301e92cc";
-    if (session.user.id !== OWNER_USER_ID) {
+    if (user.id !== OWNER_USER_ID) {
       return NextResponse.json({
         exchanges: [],
         totalInvest: 0,
