@@ -1014,10 +1014,16 @@ function SummaryCard({
   value: string;
   sub?: string;
 }) {
+  const valueSizeClass = value.length >= 10
+    ? "text-[13px] sm:text-base md:text-xl"
+    : "text-xl";
+
   return (
-    <div className="flex flex-col gap-1 rounded-xl border border-[#e0e0e0] bg-white px-4 py-4 dark:bg-[#1a2332] dark:border-[#2a3a4a]">
+    <div className="flex min-w-0 flex-col gap-1 rounded-xl border border-[#e0e0e0] bg-white px-4 py-4 dark:bg-[#1a2332] dark:border-[#2a3a4a]">
       <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="text-xl font-bold text-gray-900 dark:text-white leading-tight">{value}</span>
+      <span className={`${valueSizeClass} max-w-full font-bold leading-tight text-gray-900 dark:text-white`}>
+        {value}
+      </span>
       {sub && <span className="text-xs text-gray-400">{sub}</span>}
     </div>
   );
