@@ -17,7 +17,7 @@ function getKoreaDateString(): string {
 export async function GET(req: NextRequest) {
   try {
     if (!isValidCronRequest(req)) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     // Jake의 user_id로 고정
@@ -29,16 +29,16 @@ export async function GET(req: NextRequest) {
       try {
         const today = getKoreaDateString();
         const benchmark = await saveBenchmarkRange(today, today);
-        return Response.json({ success: true, message: "Daily log 저장 완료", benchmark }, { status: 200 });
+        return Response.json({ success: true, message: "일일 자산 로그 저장 완료", benchmark }, { status: 200 });
       } catch (benchmarkError: unknown) {
         return Response.json({
           success: true,
-          message: "Daily log 저장 완료",
+          message: "일일 자산 로그 저장 완료",
           benchmarkWarning: benchmarkError instanceof Error ? benchmarkError.message : "벤치마크 저장 실패",
         }, { status: 200 });
       }
     } else {
-      return Response.json({ success: false, error: "Daily log 저장 실패 - 서버 로그 확인" }, { status: 500 });
+      return Response.json({ success: false, error: "일일 자산 로그 저장 실패 - 서버 로그를 확인하세요." }, { status: 500 });
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "알 수 없는 오류";

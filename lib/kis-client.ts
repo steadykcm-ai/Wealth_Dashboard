@@ -87,7 +87,7 @@ async function getAccessToken(): Promise<string> {
   }
 
   if (storedToken.status === "unavailable" || storedToken.status === "error") {
-    throw new Error("KIS shared token cache is unavailable");
+    throw new Error("KIS 공유 토큰 캐시를 사용할 수 없습니다.");
   }
 
   if (pendingTokenRequest) {
@@ -109,7 +109,7 @@ async function requestAccessToken(): Promise<string> {
   const appSecret = process.env.KIS_APP_SECRET;
 
   if (!appKey || !appSecret) {
-    throw new Error("KIS_APP_KEY and KIS_APP_SECRET must be set");
+    throw new Error("KIS_APP_KEY와 KIS_APP_SECRET을 설정해야 합니다.");
   }
 
   try {
@@ -129,18 +129,18 @@ async function requestAccessToken(): Promise<string> {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Token request failed: ${response.status} ${errorText}`);
+      throw new Error(`KIS 접근 토큰 발급 실패: ${response.status} ${errorText}`);
     }
 
     const data = (await response.json()) as KisTokenResponse;
 
     const token = data.access_token;
-    if (!token) throw new Error("No access_token in response");
+    if (!token) throw new Error("KIS 응답에 접근 토큰이 없습니다.");
 
     const expiresIn = data.expires_in || DEFAULT_TOKEN_EXPIRES_IN_SECONDS;
     const expiresAtMs = now + expiresIn * 1000 - TOKEN_EXPIRY_BUFFER_MS;
     const saved = await saveCachedKisToken(token, expiresAtMs);
-    if (!saved) throw new Error("Failed to persist KIS access token");
+    if (!saved) throw new Error("KIS 접근 토큰 저장에 실패했습니다.");
 
     cachedToken = token;
     tokenExpireTime = expiresAtMs;
@@ -160,7 +160,7 @@ export async function fetchKISQuote(code: string): Promise<KisQuote | null> {
     const appKey = process.env.KIS_APP_KEY;
     const appSecret = process.env.KIS_APP_SECRET;
 
-    if (!appKey || !appSecret) throw new Error("KIS credentials not set");
+    if (!appKey || !appSecret) throw new Error("KIS 인증 정보가 설정되지 않았습니다.");
 
     const token = await getAccessToken();
     const url = `${BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=${code}`;
@@ -211,7 +211,7 @@ export async function fetchKISDailyClose(
     const appKey = process.env.KIS_APP_KEY;
     const appSecret = process.env.KIS_APP_SECRET;
 
-    if (!appKey || !appSecret) throw new Error("KIS credentials not set");
+    if (!appKey || !appSecret) throw new Error("KIS 인증 정보가 설정되지 않았습니다.");
 
     const token = await getAccessToken();
     const targetDate = toKisDate(date);
@@ -261,7 +261,7 @@ export async function fetchKISDomesticIndexSeries(
 ): Promise<KisIndexPoint[]> {
   const appKey = process.env.KIS_APP_KEY;
   const appSecret = process.env.KIS_APP_SECRET;
-  if (!appKey || !appSecret) throw new Error("KIS credentials not set");
+  if (!appKey || !appSecret) throw new Error("KIS 인증 정보가 설정되지 않았습니다.");
 
   const token = await getAccessToken();
   const points = new Map<string, number>();
@@ -288,13 +288,13 @@ export async function fetchKISDomesticIndexSeries(
       }
     );
     if (!response.ok) {
-      throw new Error(`KIS KOSPI request failed: HTTP ${response.status}`);
+      throw new Error(`KIS KOSPI 조회 실패: HTTP ${response.status}`);
     }
 
     const data = (await response.json()) as KisDomesticIndexResponse;
     if (data.rt_cd !== "0") {
       throw new Error(
-        `KIS KOSPI request failed: ${data.msg_cd ?? "UNKNOWN"} ${data.msg1 ?? ""}`.trim()
+        `KIS KOSPI 조회 실패: ${data.msg_cd ?? "알 수 없는 오류"} ${data.msg1 ?? ""}`.trim()
       );
     }
 
@@ -327,7 +327,7 @@ export async function fetchKISOverseasIndexSeries(
 ): Promise<KisIndexPoint[]> {
   const appKey = process.env.KIS_APP_KEY;
   const appSecret = process.env.KIS_APP_SECRET;
-  if (!appKey || !appSecret) throw new Error("KIS credentials not set");
+  if (!appKey || !appSecret) throw new Error("KIS 인증 정보가 설정되지 않았습니다.");
 
   const token = await getAccessToken();
   const points = new Map<string, number>();
@@ -355,13 +355,13 @@ export async function fetchKISOverseasIndexSeries(
       }
     );
     if (!response.ok) {
-      throw new Error(`KIS S&P 500 request failed: HTTP ${response.status}`);
+      throw new Error(`KIS S&P 500 조회 실패: HTTP ${response.status}`);
     }
 
     const data = (await response.json()) as KisOverseasIndexResponse;
     if (data.rt_cd !== "0") {
       throw new Error(
-        `KIS S&P 500 request failed: ${data.msg_cd ?? "UNKNOWN"} ${data.msg1 ?? ""}`.trim()
+        `KIS S&P 500 조회 실패: ${data.msg_cd ?? "알 수 없는 오류"} ${data.msg1 ?? ""}`.trim()
       );
     }
 

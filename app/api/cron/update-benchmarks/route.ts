@@ -20,7 +20,7 @@ function isIsoDate(value: string): boolean {
 export async function GET(req: NextRequest) {
   try {
     if (!isValidCronRequest(req)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     const today = getKoreaDateString();

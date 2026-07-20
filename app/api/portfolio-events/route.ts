@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const supabaseServer = await createSupabaseServer();
     const { data: { user } } = await supabaseServer.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     const body = await req.json() as {
@@ -43,19 +43,19 @@ export async function POST(req: NextRequest) {
     const eventType = body.eventType;
 
     if (!isIsoDate(date) || !category || !CATEGORIES.includes(category) || !accountName) {
-      return NextResponse.json({ error: "Invalid portfolio event identity" }, { status: 400 });
+      return NextResponse.json({ error: "자산 변동 정보가 올바르지 않습니다." }, { status: 400 });
     }
 
     if (!eventType || !EVENT_TYPES.includes(eventType)) {
-      return NextResponse.json({ error: "Invalid portfolio event type" }, { status: 400 });
+      return NextResponse.json({ error: "지원하지 않는 자산 변동 유형입니다." }, { status: 400 });
     }
 
     if (!Number.isFinite(detectedAmount)) {
-      return NextResponse.json({ error: "Detected amount must be a number" }, { status: 400 });
+      return NextResponse.json({ error: "감지된 변동 금액은 숫자여야 합니다." }, { status: 400 });
     }
 
     if (eventType !== "ignored" && (!Number.isFinite(submittedAmount) || submittedAmount === 0)) {
-      return NextResponse.json({ error: "Amount must be a non-zero number" }, { status: 400 });
+      return NextResponse.json({ error: "변동 금액은 0이 아닌 숫자여야 합니다." }, { status: 400 });
     }
 
     const amount = eventType === "ignored"
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, event: data });
   } catch (err: unknown) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to save portfolio event" },
+      { error: err instanceof Error ? err.message : "자산 변동 저장에 실패했습니다." },
       { status: 500 }
     );
   }

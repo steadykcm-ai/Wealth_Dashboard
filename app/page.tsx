@@ -52,6 +52,16 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
+function useMounted(): boolean {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  return mounted;
+}
+
 interface TodayQuote {
   price: number;
   changeAmount: number;
@@ -1013,6 +1023,93 @@ function SummaryCard({
   );
 }
 
+type DataSyncState = "ok" | "loading" | "error" | "empty";
+
+interface DataSyncItem {
+  label: string;
+  value: string;
+  state: DataSyncState;
+}
+
+function formatLogDate(dateKey?: string | null): string | undefined {
+  if (!dateKey) return undefined;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) return undefined;
+  return `${match[1]}. ${Number(match[2])}. ${Number(match[3])}.`;
+}
+
+function DataSyncStatus({
+  priceUpdatedAt,
+  latestLogDate,
+  latestBenchmarkDate,
+  assetsError,
+  performanceError,
+  assetsLoading,
+  performanceLoading,
+}: {
+  priceUpdatedAt?: string;
+  latestLogDate?: string | null;
+  latestBenchmarkDate?: string;
+  assetsError: string | null;
+  performanceError: string | null;
+  assetsLoading: boolean;
+  performanceLoading: boolean;
+}) {
+  const buildItem = (
+    label: string,
+    value: string | undefined,
+    loading: boolean,
+    error: string | null
+  ): DataSyncItem => {
+    if (loading) return { label, value: "확인 중", state: "loading" };
+    if (error) return { label, value: "조회 실패", state: "error" };
+    if (!value) return { label, value: "기록 없음", state: "empty" };
+    return { label, value, state: "ok" };
+  };
+
+  const items = [
+    buildItem("현재가", formatPriceUpdatedAt(priceUpdatedAt), assetsLoading, assetsError),
+    buildItem("자산 로그", formatLogDate(latestLogDate), performanceLoading, performanceError),
+    buildItem("벤치마크", formatLogDate(latestBenchmarkDate), performanceLoading, performanceError),
+  ];
+
+  const dotColors: Record<DataSyncState, string> = {
+    ok: "#16a34a",
+    loading: "#9ca3af",
+    error: "#dc2626",
+    empty: "#d97706",
+  };
+
+  return (
+    <section
+      aria-label="데이터 갱신 상태"
+      className="mx-4 mb-4 grid grid-cols-3 border-y border-[#e0e0e0] bg-white dark:border-[#2a3a4a] dark:bg-[#1a2332] md:mx-0 md:mb-6"
+    >
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="min-w-0 border-r border-[#e0e0e0] px-3 py-2.5 last:border-r-0 dark:border-[#2a3a4a] md:px-4"
+          title={item.state === "error" ? (item.label === "현재가" ? assetsError ?? undefined : performanceError ?? undefined) : undefined}
+        >
+          <div className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: dotColors[item.state] }}
+            />
+            <span className="truncate text-[11px] font-medium text-gray-500 dark:text-gray-400">
+              {item.label}
+            </span>
+          </div>
+          <p className="mt-1 truncate text-xs font-semibold text-gray-800 dark:text-gray-100">
+            {item.value}
+          </p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 // ── 로그아웃 버튼 ────────────────────────────────────
 function LogoutButton() {
   const router = useRouter();
@@ -1043,6 +1140,37 @@ function LogoutButton() {
 }
 
 // ── 사이드바 (데스크톱) ──────────────────────────────────
+function ThemeToggle({ className }: { className: string }) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const mounted = useMounted();
+  const isDark = resolvedTheme === "dark";
+  const title = mounted
+    ? isDark
+      ? "현재: 다크 모드. 라이트 모드로 전환"
+      : "현재: 라이트 모드. 다크 모드로 전환"
+    : "테마 불러오는 중";
+  const ariaLabel = mounted
+    ? isDark
+      ? "현재 다크 모드, 라이트 모드로 전환"
+      : "현재 라이트 모드, 다크 모드로 전환"
+    : "테마 불러오는 중";
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      disabled={!mounted}
+      className={`${className} disabled:cursor-default`}
+      title={title}
+      aria-label={ariaLabel}
+    >
+      <span className={mounted ? "" : "invisible"} aria-hidden="true">
+        {isDark ? "🌙" : "☀️"}
+      </span>
+    </button>
+  );
+}
+
 function Sidebar({
   activeTab,
   onTabChange,
@@ -1050,8 +1178,6 @@ function Sidebar({
   activeTab: string;
   onTabChange: (t: string) => void;
 }) {
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
   const items = [
     { id: "전체", label: "전체 자산" },
     { id: "개별주식", label: "개별주식" },
@@ -1066,14 +1192,7 @@ function Sidebar({
         <span className="text-white text-xl font-bold tracking-tight">
           Wealth<span style={{ color: "#3d47cf" }}>.</span>
         </span>
-        <button
-          onClick={() => setTheme(isDark ? "light" : "dark")}
-          className="text-gray-400 hover:text-white transition-colors"
-          title={isDark ? "현재: 다크 모드. 라이트 모드로 전환" : "현재: 라이트 모드. 다크 모드로 전환"}
-          aria-label={isDark ? "현재 다크 모드, 라이트 모드로 전환" : "현재 라이트 모드, 다크 모드로 전환"}
-        >
-          {isDark ? "🌙" : "☀️"}
-        </button>
+        <ThemeToggle className="text-gray-400 hover:text-white transition-colors" />
       </div>
       <nav className="flex flex-col gap-1 flex-1">
         {items.map((t) => (
@@ -1109,9 +1228,6 @@ function MobileHeader({
   onRefetch: () => void;
   refreshing: boolean;
 }) {
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
-
   async function handleLogout() {
     const { supabase } = await import("@/lib/supabase-browser");
     await supabase.auth.signOut();
@@ -1127,14 +1243,7 @@ function MobileHeader({
           Wealth<span style={{ color: "#3d47cf" }}>.</span>
         </span>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#2a3a4a]"
-            title={isDark ? "현재: 다크 모드. 라이트 모드로 전환" : "현재: 라이트 모드. 다크 모드로 전환"}
-            aria-label={isDark ? "현재 다크 모드, 라이트 모드로 전환" : "현재 라이트 모드, 다크 모드로 전환"}
-          >
-            {isDark ? "🌙" : "☀️"}
-          </button>
+          <ThemeToggle className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-[#2a3a4a] hover:text-white" />
           <button
             onClick={onRefetch}
             disabled={refreshing}
@@ -2108,6 +2217,8 @@ export default function DashboardPage() {
   const [addModalAccount, setAddModalAccount] = useState<AccountGroup | "new" | null>(null);
   const [profitLogs, setProfitLogs] = useState<DailyLogItem[]>([]);
   const [benchmarkSeries, setBenchmarkSeries] = useState<BenchmarkSeries[]>([]);
+  const [performanceLoading, setPerformanceLoading] = useState(true);
+  const [performanceError, setPerformanceError] = useState<string | null>(null);
   const [portfolioEvents, setPortfolioEvents] = useState<PortfolioEvent[]>([]);
   const [changeCandidates, setChangeCandidates] = useState<PortfolioChangeCandidate[]>([]);
   const [eventReviewOpen, setEventReviewOpen] = useState(false);
@@ -2165,24 +2276,30 @@ export default function DashboardPage() {
 
   useEffect(() => {
     (async () => {
+      setPerformanceLoading(true);
+      setPerformanceError(null);
       try {
         const res = await fetch("/api/profits");
-        if (res.ok) {
-          const json = (await res.json()) as {
-            data: DailyLogItem[];
-            benchmarks?: BenchmarkSeries[];
-            portfolioEvents?: PortfolioEvent[];
-            changeCandidates?: PortfolioChangeCandidate[];
-            meta?: ProfitLogMeta;
-          };
-          setProfitLogs(json.data);
-          setBenchmarkSeries(json.benchmarks ?? []);
-          setPortfolioEvents(json.portfolioEvents ?? []);
-          setChangeCandidates(json.changeCandidates ?? []);
-          setProfitLogMeta(json.meta ?? null);
+        if (!res.ok) {
+          const body = await res.json() as { error?: string };
+          throw new Error(body.error ?? `HTTP ${res.status}`);
         }
-      } catch (err) {
-        // 수익 데이터 로드 실패 무시
+        const json = (await res.json()) as {
+          data: DailyLogItem[];
+          benchmarks?: BenchmarkSeries[];
+          portfolioEvents?: PortfolioEvent[];
+          changeCandidates?: PortfolioChangeCandidate[];
+          meta?: ProfitLogMeta;
+        };
+        setProfitLogs(json.data);
+        setBenchmarkSeries(json.benchmarks ?? []);
+        setPortfolioEvents(json.portfolioEvents ?? []);
+        setChangeCandidates(json.changeCandidates ?? []);
+        setProfitLogMeta(json.meta ?? null);
+      } catch (err: unknown) {
+        setPerformanceError(err instanceof Error ? err.message : "성과 데이터를 불러오지 못했습니다.");
+      } finally {
+        setPerformanceLoading(false);
       }
     })();
   }, []);
@@ -2490,6 +2607,10 @@ export default function DashboardPage() {
   })();
 
   const title = activeTab === "전체" ? "전체 자산 현황" : activeTab;
+  const latestBenchmarkDate = benchmarkSeries
+    .flatMap((series) => series.points.map((point) => point.date))
+    .sort()
+    .at(-1);
 
   return (
     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
@@ -2523,6 +2644,16 @@ export default function DashboardPage() {
             데이터를 불러오지 못했습니다: {error}
           </div>
         )}
+
+        <DataSyncStatus
+          priceUpdatedAt={data?.summary.priceUpdatedAt}
+          latestLogDate={profitLogMeta?.latestLogDate}
+          latestBenchmarkDate={latestBenchmarkDate}
+          assetsError={error}
+          performanceError={performanceError}
+          assetsLoading={loading}
+          performanceLoading={performanceLoading}
+        />
 
         {/* Summary 카드 */}
         <div className="grid grid-cols-3 gap-2 px-4 md:px-0 mb-4 md:mb-6 md:gap-4">

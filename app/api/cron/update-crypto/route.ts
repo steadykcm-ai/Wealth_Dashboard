@@ -6,7 +6,7 @@ export const revalidate = 0;
 export async function GET(req: NextRequest) {
   try {
     if (!isValidCronRequest(req)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!response.ok) {
-      throw new Error(`Crypto API failed: ${response.status}`);
+      throw new Error(`가상자산 API 조회 실패: ${response.status}`);
     }
 
     const data = await response.json();

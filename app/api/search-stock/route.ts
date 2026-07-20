@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     const supabaseServer = await createSupabaseServer();
     const { data: { user } } = await supabaseServer.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
 
     if (!query) {
       return NextResponse.json(
-        { error: "query parameter required" },
+        { error: "검색어가 필요합니다." },
         { status: 400 }
       );
     }
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
 
     if (results.length === 0) {
       return NextResponse.json(
-        { error: "No valid codes found", query },
+        { error: "유효한 종목 코드를 찾지 못했습니다.", query },
         { status: 404 }
       );
     }

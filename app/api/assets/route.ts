@@ -217,7 +217,7 @@ export async function GET() {
     const supabaseServer = await createSupabaseServer();
     const { data: { user } } = await supabaseServer.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     const summary = await buildAssetSummaryFromSupabase(supabaseServer, user.id);
