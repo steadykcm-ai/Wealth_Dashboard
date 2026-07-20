@@ -1165,7 +1165,7 @@ function ThemeToggle({ className }: { className: string }) {
       aria-label={ariaLabel}
     >
       <span className={mounted ? "" : "invisible"} aria-hidden="true">
-        {isDark ? "🌙" : "☀️"}
+        {mounted ? (isDark ? "🌙" : "☀️") : "☀️"}
       </span>
     </button>
   );
