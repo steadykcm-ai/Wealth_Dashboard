@@ -8,6 +8,8 @@ import type {
 const EVENT_TYPES: PortfolioEventType[] = [
   "deposit",
   "withdrawal",
+  "transfer_in",
+  "transfer_out",
   "valuation_adjustment",
   "ignored",
 ];
@@ -60,9 +62,9 @@ export async function POST(req: NextRequest) {
 
     const amount = eventType === "ignored"
       ? 0
-      : eventType === "deposit"
+      : eventType === "deposit" || eventType === "transfer_in"
         ? Math.abs(submittedAmount)
-        : eventType === "withdrawal"
+        : eventType === "withdrawal" || eventType === "transfer_out"
           ? -Math.abs(submittedAmount)
           : submittedAmount;
 

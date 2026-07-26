@@ -138,6 +138,8 @@ export type PortfolioEventCategory = "stocks" | "pension";
 export type PortfolioEventType =
   | "deposit"
   | "withdrawal"
+  | "transfer_in"
+  | "transfer_out"
   | "valuation_adjustment"
   | "ignored";
 

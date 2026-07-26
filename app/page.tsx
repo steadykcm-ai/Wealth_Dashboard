@@ -433,16 +433,32 @@ function AssetTrendChart({
     let cumulativeValuationAdjustment = 0;
 
     const aligned = rawData.map((row) => {
+      let periodNetFlow = 0;
+      let periodValuationAdjustment = 0;
       while (eventIndex < relevantEvents.length && relevantEvents[eventIndex].date <= row.fullDate) {
         const event = relevantEvents[eventIndex];
-        if (event.eventType === "deposit" || event.eventType === "withdrawal") {
-          cumulativeNetFlow += event.amount;
+        const isTransfer = event.eventType === "transfer_in" || event.eventType === "transfer_out";
+        if (
+          event.eventType === "deposit"
+          || event.eventType === "withdrawal"
+          || isTransfer
+        ) {
+          const flowAmount = isTotal && isTransfer ? 0 : event.amount;
+          cumulativeNetFlow += flowAmount;
+          periodNetFlow += flowAmount;
         } else if (event.eventType === "valuation_adjustment") {
           cumulativeValuationAdjustment += event.amount;
+          periodValuationAdjustment += event.amount;
         }
         eventIndex += 1;
       }
-      return { ...row, cumulativeNetFlow, cumulativeValuationAdjustment };
+      return {
+        ...row,
+        cumulativeNetFlow,
+        cumulativeValuationAdjustment,
+        periodNetFlow,
+        periodValuationAdjustment,
+      };
     });
 
     const base = aligned.find((row) => row.selected !== null);
@@ -450,17 +466,30 @@ function AssetTrendChart({
     const baseNetFlow = base?.cumulativeNetFlow ?? 0;
     const baseValuationAdjustment = base?.cumulativeValuationAdjustment ?? 0;
 
+    let previousValue: number | null = null;
+    let cumulativeReturnFactor = 1;
+
     return aligned.map((row) => {
       const assetChange = baseValue !== null && row.selected !== null
         ? row.selected - baseValue
         : null;
       const netFlow = row.cumulativeNetFlow - baseNetFlow;
       const valuationAdjustment = row.cumulativeValuationAdjustment - baseValuationAdjustment;
+      let periodReturn: number | null = null;
+      if (row.selected !== null && previousValue !== null && previousValue !== 0) {
+        const adjustedEndValue = row.selected - row.periodNetFlow - row.periodValuationAdjustment;
+        periodReturn = (adjustedEndValue - previousValue) / previousValue;
+        cumulativeReturnFactor *= 1 + periodReturn;
+      }
+      if (row.selected !== null) previousValue = row.selected;
+
       return {
         ...row,
         assetChange,
         netFlow,
         valuationAdjustment,
+        periodReturn: periodReturn === null ? null : periodReturn * 100,
+        cashFlowAdjustedReturn: (cumulativeReturnFactor - 1) * 100,
         investmentProfit: assetChange === null
           ? null
           : assetChange - netFlow - valuationAdjustment,
@@ -475,6 +504,10 @@ function AssetTrendChart({
   const latestInvestmentProfit = performanceData
     .map((row) => row.investmentProfit)
     .filter((value): value is number => value !== null)
+    .at(-1) ?? 0;
+  const latestCashFlowAdjustedReturn = performanceData
+    .map((row) => row.cashFlowAdjustedReturn)
+    .filter((value): value is number => Number.isFinite(value))
     .at(-1) ?? 0;
   const investmentProfitColor = latestInvestmentProfit >= 0 ? "#f44336" : "#1565c0";
 
@@ -492,6 +525,8 @@ function AssetTrendChart({
     assetChange?: number | null;
     netFlow?: number;
     valuationAdjustment?: number;
+    periodReturn?: number | null;
+    cashFlowAdjustedReturn?: number;
     investmentProfit?: number | null;
     fullDate: string;
   }>) => {
@@ -508,6 +543,8 @@ function AssetTrendChart({
         assetChange,
         netFlow,
         valuationAdjustment,
+        periodReturn,
+        cashFlowAdjustedReturn,
         investmentProfit,
         fullDate,
       } = chartPayload;
@@ -527,6 +564,10 @@ function AssetTrendChart({
               <p className="text-xs text-gray-500">평가조정: {formatKRW(valuationAdjustment ?? 0)}</p>
               <p className="text-xs" style={{ color: investmentProfitColor }}>
                 투자수익: {formatKRW(investmentProfit ?? 0)}
+              </p>
+              <p className="text-xs font-semibold" style={{ color: rateColor(cashFlowAdjustedReturn ?? 0) }}>
+                보정 수익률: {formatRate(cashFlowAdjustedReturn ?? 0)}
+                {periodReturn !== null && periodReturn !== undefined ? ` · 일간 ${formatRate(periodReturn)}` : ""}
               </p>
             </>
           ) : !isTotal && chartMode === "benchmark" ? (
@@ -680,11 +721,20 @@ function AssetTrendChart({
           </div>
         )}
         {chartMode === "performance" && (
-          <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
             <span><span className="mr-1 inline-block h-2 w-2 bg-[#3d47cf]" />자산 증감</span>
-            <span><span className="mr-1 inline-block h-2 w-2 bg-[#26a69a]" />순입출금</span>
+            <span><span className="mr-1 inline-block h-2 w-2 bg-[#26a69a]" />{isTotal ? "순입출금" : "순유입"}</span>
             <span><span className="mr-1 inline-block h-2 w-2 bg-[#9e9e9e]" />평가조정</span>
             <span><span className="mr-1 inline-block h-2 w-2" style={{ background: investmentProfitColor }} />투자수익</span>
+            <span
+              className="rounded-full px-2 py-0.5 font-semibold"
+              style={{
+                color: rateColor(latestCashFlowAdjustedReturn),
+                background: latestCashFlowAdjustedReturn >= 0 ? "#ffebee" : "#e3f2fd",
+              }}
+            >
+              보정 수익률 {formatRate(latestCashFlowAdjustedReturn)}
+            </span>
           </div>
         )}
         <ResponsiveContainer width="100%" height={300}>
@@ -2306,10 +2356,12 @@ function PortfolioEventReviewModal({
                     className="w-36 rounded-md border border-[#d6d9e0] bg-white px-3 py-2 text-right text-sm font-semibold text-gray-900 dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-gray-100"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {([
                     ["deposit", "입금"],
                     ["withdrawal", "출금"],
+                    ["transfer_in", "이체 받음"],
+                    ["transfer_out", "이체 보냄"],
                     ["valuation_adjustment", "평가액 수정"],
                     ["ignored", "무시"],
                   ] as const).map(([eventType, label]) => (
