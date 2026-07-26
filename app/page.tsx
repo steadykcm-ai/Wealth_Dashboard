@@ -906,10 +906,22 @@ function RebalancePanel({
       };
     });
     const totalGap = rows.reduce((sum, row) => sum + row.gapValue, 0);
-    return rows.map((row) => ({
-      ...row,
-      recommendedBuy: totalGap > 0 ? (contributionAmount * row.gapValue) / totalGap : 0,
-    }));
+    if (totalGap <= 0) return rows;
+
+    const roundedBudget = Math.round(contributionAmount);
+    const rawBuys = rows.map((row) => (roundedBudget * row.gapValue) / totalGap);
+    const integerBuys = rawBuys.map((amount) => Math.floor(amount));
+    let remainder = roundedBudget - integerBuys.reduce((sum, amount) => sum + amount, 0);
+    const remainderOrder = rawBuys
+      .map((amount, index) => ({ index, fraction: amount - Math.floor(amount) }))
+      .sort((left, right) => right.fraction - left.fraction);
+    remainderOrder.forEach(({ index }) => {
+      if (remainder <= 0) return;
+      integerBuys[index] += 1;
+      remainder -= 1;
+    });
+
+    return rows.map((row, index) => ({ ...row, recommendedBuy: integerBuys[index] }));
   }, [contributionAmount, holdingsTotal, items, targetInputs, targetSumIsValid]);
 
   useEffect(() => {
@@ -1092,7 +1104,7 @@ function RebalancePanel({
                 </div>
                 <div className="text-right text-xs font-semibold text-gray-900 dark:text-white md:col-auto">
                   <span className="mr-1 font-normal text-gray-400 md:hidden">매수</span>
-                  {targetSumIsValid && contributionAmount > 0 ? formatKRW(Math.round(row.recommendedBuy)) : "—"}
+                  {targetSumIsValid && contributionAmount > 0 ? formatKRW(row.recommendedBuy) : "—"}
                 </div>
               </div>
             ))}
