@@ -23,6 +23,7 @@ import type {
   SyncRun,
   RebalanceCategory,
   RebalanceTarget,
+  RetirementSettings,
 } from "@/lib/types";
 
 type ProfitLogMeta = {
@@ -1164,6 +1165,378 @@ function MonthlyInvestmentReport({
   );
 }
 
+interface RetirementScenarioResult {
+  label: string;
+  annualReturn: number;
+  projectedAssets: number;
+  targetAssets: number;
+  monthlyIncome: number;
+  fundingRate: number;
+}
+
+function calculateRetirementScenario(
+  currentAssets: number,
+  settings: RetirementSettings,
+  returnAdjustment: number,
+  label: string
+): RetirementScenarioResult {
+  const annualReturn = settings.expectedReturnRate + returnAdjustment;
+  const realAnnualRate = (1 + annualReturn / 100) / (1 + settings.inflationRate / 100) - 1;
+  const monthlyRate = Math.pow(1 + realAnnualRate, 1 / 12) - 1;
+  const savingMonths = Math.max(0, (settings.retirementAge - settings.currentAge) * 12);
+  const retirementMonths = Math.max(1, (settings.lifeExpectancy - settings.retirementAge) * 12);
+  const savingGrowth = Math.pow(1 + monthlyRate, savingMonths);
+  const contributionGrowth = Math.abs(monthlyRate) < 0.000001
+    ? settings.monthlyContribution * savingMonths
+    : settings.monthlyContribution * ((savingGrowth - 1) / monthlyRate);
+  const projectedAssets = Math.max(0, currentAssets * savingGrowth + contributionGrowth);
+  const monthlyGap = Math.max(0, settings.monthlyLivingCost - settings.publicPensionMonthly);
+  const annuityFactor = Math.abs(monthlyRate) < 0.000001
+    ? retirementMonths
+    : (1 - Math.pow(1 + monthlyRate, -retirementMonths)) / monthlyRate;
+  const targetAssets = Math.max(0, monthlyGap * annuityFactor);
+  const sustainableWithdrawal = annuityFactor > 0 ? projectedAssets / annuityFactor : 0;
+
+  return {
+    label,
+    annualReturn,
+    projectedAssets,
+    targetAssets,
+    monthlyIncome: sustainableWithdrawal + settings.publicPensionMonthly,
+    fundingRate: targetAssets > 0 ? (projectedAssets / targetAssets) * 100 : 100,
+  };
+}
+
+function RetirementPlanner({
+  stockAssets,
+  pensionAssets,
+}: {
+  stockAssets: number;
+  pensionAssets: number;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [settings, setSettings] = useState<RetirementSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const currentAssets = stockAssets + pensionAssets;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/retirement-settings", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          const body = await response.json() as { error?: string };
+          throw new Error(body.error ?? "은퇴 설정을 불러오지 못했습니다.");
+        }
+        return response.json() as Promise<{ settings: RetirementSettings }>;
+      })
+      .then(({ settings: fetchedSettings }) => {
+        if (!cancelled) setSettings(fetchedSettings);
+      })
+      .catch((fetchError: unknown) => {
+        if (!cancelled) setError(fetchError instanceof Error ? fetchError.message : "은퇴 설정을 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const scenarios = useMemo(() => settings ? [
+    calculateRetirementScenario(currentAssets, settings, -2, "보수적"),
+    calculateRetirementScenario(currentAssets, settings, 0, "기준"),
+    calculateRetirementScenario(currentAssets, settings, 2, "낙관적"),
+  ] : [], [currentAssets, settings]);
+  const baseScenario = scenarios[1];
+
+  function updateSetting(key: keyof RetirementSettings, value: number) {
+    setSettings((previous) => previous ? { ...previous, [key]: value, updatedAt: undefined } : previous);
+    setError(null);
+  }
+
+  async function saveSettings() {
+    if (!settings || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/retirement-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      if (!response.ok) {
+        const body = await response.json() as { error?: string };
+        throw new Error(body.error ?? "은퇴 설정을 저장하지 못했습니다.");
+      }
+      const body = await response.json() as { settings: RetirementSettings };
+      setSettings(body.settings);
+    } catch (saveError: unknown) {
+      setError(saveError instanceof Error ? saveError.message : "은퇴 설정을 저장하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputFields: Array<{
+    key: keyof RetirementSettings;
+    label: string;
+    suffix: string;
+    step: number;
+  }> = [
+    { key: "currentAge", label: "현재 나이", suffix: "세", step: 1 },
+    { key: "retirementAge", label: "은퇴 나이", suffix: "세", step: 1 },
+    { key: "lifeExpectancy", label: "계획 수명", suffix: "세", step: 1 },
+    { key: "monthlyContribution", label: "월 추가 투자", suffix: "원", step: 100000 },
+    { key: "monthlyLivingCost", label: "은퇴 월 생활비", suffix: "원", step: 100000 },
+    { key: "publicPensionMonthly", label: "월 공적연금", suffix: "원", step: 100000 },
+    { key: "expectedReturnRate", label: "기대수익률", suffix: "%", step: 0.1 },
+    { key: "inflationRate", label: "물가상승률", suffix: "%", step: 0.1 },
+  ];
+
+  return (
+    <section className="mb-6 px-4 md:px-0" aria-label="은퇴 시뮬레이터">
+      <div className="overflow-hidden rounded-xl border border-[#e0e0e0] bg-white dark:border-[#2a3a4a] dark:bg-[#1a2332]">
+        <button
+          type="button"
+          onClick={() => setIsExpanded((previous) => !previous)}
+          aria-expanded={isExpanded}
+          className="flex w-full items-center justify-between gap-3 border-b border-[#e0e0e0] bg-[#f8f9fc] px-4 py-3 text-left dark:border-[#2a3a4a] dark:bg-[#0f1923]"
+        >
+          <span>
+            <span className="block text-sm font-semibold text-[#3d47cf]">은퇴 준비</span>
+            <span className="mt-0.5 block text-[11px] text-gray-400">
+              {loading ? "계산 중" : baseScenario ? `목표 충족률 ${Math.round(baseScenario.fundingRate)}%` : "설정 확인 필요"}
+            </span>
+          </span>
+          <span className="text-sm text-gray-400">{isExpanded ? "▲" : "▼"}</span>
+        </button>
+
+        {isExpanded && settings && baseScenario && (
+          <>
+            <div className="grid grid-cols-3 divide-x divide-[#e0e0e0] border-b border-[#e0e0e0] dark:divide-[#2a3a4a] dark:border-[#2a3a4a]">
+              <div className="px-3 py-4 md:px-4">
+                <span className="block text-[11px] text-gray-400">현재 은퇴자산</span>
+                <strong className="mt-1 block text-sm text-gray-900 dark:text-white md:text-base">{formatKRW(currentAssets)}</strong>
+                <span className="mt-0.5 block text-[10px] text-gray-400">주식 {formatKRW(stockAssets)} · 연금 {formatKRW(pensionAssets)}</span>
+              </div>
+              <div className="px-3 py-4 text-center md:px-4">
+                <span className="block text-[11px] text-gray-400">은퇴 예상자산</span>
+                <strong className="mt-1 block text-sm text-[#3d47cf] md:text-base">{formatKRW(baseScenario.projectedAssets)}</strong>
+                <span className="mt-0.5 block text-[10px] text-gray-400">현재가치 기준</span>
+              </div>
+              <div className="px-3 py-4 text-right md:px-4">
+                <span className="block text-[11px] text-gray-400">예상 월 가용액</span>
+                <strong className="mt-1 block text-sm text-gray-900 dark:text-white md:text-base">{formatKRW(baseScenario.monthlyIncome)}</strong>
+                <span className="mt-0.5 block text-[10px] text-gray-400">공적연금 포함</span>
+              </div>
+            </div>
+
+            <div className="border-b border-[#e0e0e0] px-4 py-4 dark:border-[#2a3a4a]">
+              <div className="space-y-3">
+                {scenarios.map((scenario) => (
+                  <div key={scenario.label} className="grid grid-cols-[52px_minmax(0,1fr)_76px] items-center gap-3 text-xs">
+                    <span className="font-semibold text-gray-600 dark:text-gray-300">{scenario.label}</span>
+                    <div className="h-2 overflow-hidden bg-gray-100 dark:bg-[#0f1923]">
+                      <div className="h-full bg-[#3d47cf]" style={{ width: `${Math.min(100, scenario.fundingRate)}%` }} />
+                    </div>
+                    <span className="text-right font-semibold text-gray-900 dark:text-white">{Math.round(scenario.fundingRate)}%</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-[11px] text-gray-400">
+                실질수익률 기준 · 기준 {baseScenario.annualReturn.toFixed(1)}% · 필요자산 {formatKRW(baseScenario.targetAssets)}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 px-4 py-4 md:grid-cols-4">
+              {inputFields.map((field) => (
+                <label key={field.key} className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                  {field.label}
+                  <span className="mt-1 flex items-center rounded-md border border-[#d6d9e0] bg-white px-2 dark:border-[#3a4658] dark:bg-[#0f1923]">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step={field.step}
+                      value={settings[field.key] ?? 0}
+                      onChange={(event) => updateSetting(field.key, Number(event.target.value))}
+                      className="min-w-0 flex-1 bg-transparent py-2 text-right text-xs font-semibold text-gray-900 outline-none dark:text-white"
+                    />
+                    <span className="ml-1 shrink-0 text-[10px] text-gray-400">{field.suffix}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {error && <p role="alert" className="border-t border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
+            <div className="flex items-center justify-between border-t border-[#e0e0e0] px-4 py-3 dark:border-[#2a3a4a]">
+              <span className="text-[11px] text-gray-400">{settings.updatedAt ? `저장 ${formatPriceUpdatedAt(settings.updatedAt)}` : "저장 전"}</span>
+              <button type="button" onClick={saveSettings} disabled={saving} className="rounded-md bg-[#3d47cf] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                {saving ? "저장 중" : "설정 저장"}
+              </button>
+            </div>
+          </>
+        )}
+        {isExpanded && !settings && <p className="px-4 py-8 text-center text-sm text-gray-400">{error ?? "은퇴 설정 불러오는 중"}</p>}
+      </div>
+    </section>
+  );
+}
+
+interface AllocationDriftItem {
+  category: "개별주식" | "개인연금";
+  name: string;
+  currentWeight: number;
+  targetWeight: number;
+  difference: number;
+}
+
+function AllocationDriftAlert({
+  groups,
+  onTabChange,
+}: {
+  groups: AssetGroup[];
+  onTabChange: (tab: string) => void;
+}) {
+  const [targets, setTargets] = useState<Record<RebalanceCategory, RebalanceTarget[]>>({ stocks: [], pension: [] });
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTargets = () => {
+      Promise.all((["stocks", "pension"] as RebalanceCategory[]).map(async (category) => {
+        const response = await fetch(`/api/rebalance-targets?category=${category}`, { cache: "no-store" });
+        if (!response.ok) return { category, targets: [] };
+        const body = await response.json() as { targets: RebalanceTarget[] };
+        return { category, targets: body.targets };
+      })).then((results) => {
+        if (cancelled) return;
+        setTargets({
+          stocks: results.find((result) => result.category === "stocks")?.targets ?? [],
+          pension: results.find((result) => result.category === "pension")?.targets ?? [],
+        });
+      }).catch(() => undefined);
+    };
+    loadTargets();
+    window.addEventListener("rebalance-targets-updated", loadTargets);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("rebalance-targets-updated", loadTargets);
+    };
+  }, []);
+
+  const driftItems = useMemo(() => ([
+    { key: "stocks" as const, label: "개별주식" as const },
+    { key: "pension" as const, label: "개인연금" as const },
+  ]).flatMap(({ key, label }) => {
+    const group = groups.find((candidate) => candidate.category === label);
+    const categoryTargets = targets[key];
+    const targetSum = categoryTargets.reduce((sum, target) => sum + target.targetWeight, 0);
+    const holdingsTotal = group?.items.reduce((sum, item) => sum + item.currentValue, 0) ?? 0;
+    if (!group || holdingsTotal <= 0 || Math.abs(targetSum - 100) > 0.05) return [];
+    const targetById = new Map(categoryTargets.map((target) => [target.assetId, target.targetWeight]));
+    return group.items.flatMap((item) => {
+      if (!item.id) return [];
+      const currentWeight = (item.currentValue / holdingsTotal) * 100;
+      const targetWeight = targetById.get(item.id) ?? 0;
+      const difference = currentWeight - targetWeight;
+      return Math.abs(difference) >= 3
+        ? [{ category: label, name: item.name, currentWeight, targetWeight, difference }]
+        : [];
+    });
+  }).sort((left, right) => Math.abs(right.difference) - Math.abs(left.difference)), [groups, targets]);
+
+  if (driftItems.length === 0) return null;
+
+  return (
+    <section className="mx-4 mb-4 border-y border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/30 md:mx-0" aria-label="목표 비중 이탈">
+      <button type="button" onClick={() => setIsExpanded((previous) => !previous)} aria-expanded={isExpanded} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-amber-900 dark:text-amber-200">
+        <span><span className="block text-sm font-semibold">목표 비중 이탈</span><span className="block text-xs opacity-75">±3%p 이상 {driftItems.length}종목</span></span>
+        <span className="text-sm opacity-70">{isExpanded ? "▲" : "▼"}</span>
+      </button>
+      {isExpanded && (
+        <div className="border-t border-amber-200 px-3 py-1 dark:border-amber-900/60">
+          {driftItems.slice(0, 5).map((item) => (
+            <button key={`${item.category}-${item.name}`} type="button" onClick={() => onTabChange(item.category)} className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-amber-200/70 py-2.5 text-left last:border-b-0 dark:border-amber-900/40">
+              <span className="min-w-0"><span className="block truncate text-xs font-semibold text-amber-900 dark:text-amber-200">{item.name}</span><span className="text-[10px] text-amber-700 dark:text-amber-300">{item.category} · 목표 {item.targetWeight.toFixed(2)}%</span></span>
+              <span className="text-right text-xs font-semibold text-amber-900 dark:text-amber-200">현재 {item.currentWeight.toFixed(2)}% · {item.difference > 0 ? "+" : ""}{item.difference.toFixed(2)}%p</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PortfolioRiskPanel({ groups, logs, events }: { groups: AssetGroup[]; logs: DailyLogItem[]; events: PortfolioEvent[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const items = groups.flatMap((group) => group.items).sort((left, right) => right.currentValue - left.currentValue);
+  const totalValue = items.reduce((sum, item) => sum + item.currentValue, 0);
+  const largestWeight = totalValue > 0 ? ((items[0]?.currentValue ?? 0) / totalValue) * 100 : 0;
+  const topFiveWeight = totalValue > 0
+    ? (items.slice(0, 5).reduce((sum, item) => sum + item.currentValue, 0) / totalValue) * 100
+    : 0;
+  const sortedLogs = [...logs].sort((left, right) => left.date.localeCompare(right.date));
+  let performanceIndex = 100;
+  let peak = 100;
+  let maxDrawdown = 0;
+  sortedLogs.slice(1).forEach((log, index) => {
+    const previousLog = sortedLogs[index];
+    const intervalEvents = events.filter((event) => (
+      event.date > previousLog.date && event.date <= log.date && event.eventType !== "ignored"
+    ));
+    const intervalFlow = intervalEvents.reduce((sum, event) => (
+      event.eventType === "deposit" || event.eventType === "withdrawal" ? sum + event.amount : sum
+    ), 0);
+    const intervalAdjustment = intervalEvents.reduce((sum, event) => (
+      event.eventType === "valuation_adjustment" ? sum + event.amount : sum
+    ), 0);
+    if (previousLog.total.total > 0) {
+      performanceIndex *= 1 + ((log.total.total - intervalFlow - intervalAdjustment - previousLog.total.total) / previousLog.total.total);
+      peak = Math.max(peak, performanceIndex);
+      maxDrawdown = Math.min(maxDrawdown, ((performanceIndex - peak) / peak) * 100);
+    }
+  });
+  const riskCount = Number(largestWeight >= 20) + Number(topFiveWeight >= 60) + Number(maxDrawdown <= -15);
+  const stressScenarios = [-10, -20, -30].map((shock) => ({
+    shock,
+    loss: totalValue * (shock / 100),
+    remaining: totalValue * (1 + shock / 100),
+  }));
+
+  if (totalValue <= 0) return null;
+
+  return (
+    <section className="mb-6 px-4 md:px-0" aria-label="포트폴리오 위험 분석">
+      <div className="overflow-hidden rounded-xl border border-[#e0e0e0] bg-white dark:border-[#2a3a4a] dark:bg-[#1a2332]">
+        <button type="button" onClick={() => setIsExpanded((previous) => !previous)} aria-expanded={isExpanded} className="flex w-full items-center justify-between gap-3 border-b border-[#e0e0e0] bg-[#f8f9fc] px-4 py-3 text-left dark:border-[#2a3a4a] dark:bg-[#0f1923]">
+          <span><span className="block text-sm font-semibold text-[#3d47cf]">위험 분석</span><span className="mt-0.5 block text-[11px] text-gray-400">{riskCount > 0 ? `주의 지표 ${riskCount}개` : "집중도 안정"}</span></span>
+          <span className="text-sm text-gray-400">{isExpanded ? "▲" : "▼"}</span>
+        </button>
+        {isExpanded && (
+          <>
+            <div className="grid grid-cols-3 divide-x divide-[#e0e0e0] border-b border-[#e0e0e0] dark:divide-[#2a3a4a] dark:border-[#2a3a4a]">
+              <div className="px-3 py-4 md:px-4"><span className="block text-[11px] text-gray-400">최대 종목</span><strong className="mt-1 block truncate text-sm text-gray-900 dark:text-white">{items[0]?.name}</strong><span className={largestWeight >= 20 ? "text-[10px] text-amber-600" : "text-[10px] text-gray-400"}>{largestWeight.toFixed(1)}%</span></div>
+              <div className="px-3 py-4 text-center md:px-4"><span className="block text-[11px] text-gray-400">상위 5종목</span><strong className="mt-1 block text-sm text-gray-900 dark:text-white">{topFiveWeight.toFixed(1)}%</strong><span className={topFiveWeight >= 60 ? "text-[10px] text-amber-600" : "text-[10px] text-gray-400"}>집중도</span></div>
+              <div className="px-3 py-4 text-right md:px-4"><span className="block text-[11px] text-gray-400">최대 낙폭</span><strong className="mt-1 block text-sm text-[#1565c0]">{maxDrawdown.toFixed(1)}%</strong><span className="text-[10px] text-gray-400">입출금 보정</span></div>
+            </div>
+            <div className="px-4 py-3">
+              <h3 className="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400">단순 충격 시나리오</h3>
+              {stressScenarios.map((scenario) => (
+                <div key={scenario.shock} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#f0f0f0] py-2.5 text-xs last:border-b-0 dark:border-[#2a3a4a]">
+                  <span className="font-semibold text-[#1565c0]">{scenario.shock}%</span>
+                  <div className="h-1.5 overflow-hidden bg-gray-100 dark:bg-[#0f1923]"><div className="h-full bg-[#1565c0]" style={{ width: `${Math.abs(scenario.shock)}%` }} /></div>
+                  <span className="text-right text-gray-600 dark:text-gray-300">{formatKRW(scenario.loss)} → {formatKRW(scenario.remaining)}</span>
+                </div>
+              ))}
+              <p className="mt-2 text-[10px] text-gray-400">전체 평가자산에 동일한 충격을 적용한 단순 계산</p>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ── 리밸런싱 패널 ────────────────────────────────────────
 function RebalancePanel({
   group,
@@ -1344,6 +1717,7 @@ function RebalancePanel({
       const body = await response.json() as { targets: RebalanceTarget[] };
       const latestUpdatedAt = body.targets.map((target) => target.updatedAt).filter(Boolean).sort().at(-1);
       setSavedAt(latestUpdatedAt ?? new Date().toISOString());
+      window.dispatchEvent(new CustomEvent("rebalance-targets-updated"));
     } catch (error: unknown) {
       setTargetError(error instanceof Error ? error.message : "목표 비중을 저장하지 못했습니다.");
     } finally {
@@ -3807,6 +4181,8 @@ export default function DashboardPage() {
     () => buildDataQualityIssues(summary, profitLogs, portfolioEvents),
     [portfolioEvents, profitLogs, summary]
   );
+  const retirementStockAssets = adjustedGroups.find((group) => group.category === "개별주식")?.totalValue ?? 0;
+  const retirementPensionAssets = adjustedGroups.find((group) => group.category === "개인연금")?.totalValue ?? 0;
 
   return (
     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
@@ -3857,6 +4233,7 @@ export default function DashboardPage() {
         />
 
         <DataQualityAlert issues={dataQualityIssues} />
+        <AllocationDriftAlert groups={adjustedGroups} onTabChange={setActiveTab} />
 
         {/* Summary 카드 */}
         <div className="grid grid-cols-3 gap-2 px-4 md:px-0 mb-4 md:mb-6 md:gap-4">
@@ -3915,6 +4292,11 @@ export default function DashboardPage() {
               events={portfolioEvents}
               unreviewedCount={changeCandidates.length}
             />
+            <RetirementPlanner
+              stockAssets={retirementStockAssets}
+              pensionAssets={retirementPensionAssets}
+            />
+            <PortfolioRiskPanel groups={adjustedGroups} logs={profitLogs} events={portfolioEvents} />
           </>
         )}
 

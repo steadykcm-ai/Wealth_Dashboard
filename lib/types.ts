@@ -189,6 +189,18 @@ export interface RebalanceTarget {
   updatedAt?: string;
 }
 
+export interface RetirementSettings {
+  currentAge: number;
+  retirementAge: number;
+  lifeExpectancy: number;
+  monthlyContribution: number;
+  monthlyLivingCost: number;
+  publicPensionMonthly: number;
+  expectedReturnRate: number;
+  inflationRate: number;
+  updatedAt?: string;
+}
+
 export interface CryptoAssetRow {
   id: number;
   ticker: string;
