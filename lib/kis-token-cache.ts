@@ -17,6 +17,11 @@ export type KisTokenCacheReadResult =
   | { status: "miss" }
   | { status: "unavailable" | "error" };
 
+export interface KisTokenCacheSnapshot {
+  status: KisTokenCacheReadResult["status"];
+  expiresAt?: string;
+}
+
 export async function readCachedKisToken(nowMs: number): Promise<KisTokenCacheReadResult> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
@@ -71,4 +76,16 @@ export async function saveCachedKisToken(
   );
 
   return !error;
+}
+
+export async function getKisTokenCacheSnapshot(nowMs = Date.now()): Promise<KisTokenCacheSnapshot> {
+  const result = await readCachedKisToken(nowMs);
+  if (result.status !== "hit") {
+    return { status: result.status };
+  }
+
+  return {
+    status: "hit",
+    expiresAt: new Date(result.token.expiresAtMs).toISOString(),
+  };
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveBenchmarkRange } from "@/lib/benchmarks";
 import { isValidCronRequest } from "@/lib/cron-auth";
+import { DASHBOARD_OWNER_USER_ID, runBenchmarkSync } from "@/lib/sync-jobs";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +36,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "조회 기간은 최대 370일입니다." }, { status: 400 });
     }
 
-    const saved = await saveBenchmarkRange(startDate, endDate);
-    return NextResponse.json({ success: true, startDate, endDate, saved });
+    const result = await runBenchmarkSync(
+      DASHBOARD_OWNER_USER_ID,
+      "cron",
+      startDate,
+      endDate
+    );
+    return NextResponse.json({ success: true, startDate, endDate, result });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "벤치마크 저장 실패" },

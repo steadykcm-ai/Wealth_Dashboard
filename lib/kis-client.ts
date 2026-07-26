@@ -8,6 +8,10 @@ let cachedToken: string | null = null;
 let tokenExpireTime: number = 0;
 let pendingTokenRequest: Promise<string> | null = null;
 
+export function hasMemoryCachedKisToken(nowMs = Date.now()): boolean {
+  return Boolean(cachedToken && tokenExpireTime > nowMs);
+}
+
 interface KisTokenResponse {
   access_token?: string;
   expires_in?: number;

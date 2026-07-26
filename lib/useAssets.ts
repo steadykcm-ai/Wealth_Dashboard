@@ -8,7 +8,8 @@ interface UseAssetsResult {
   loading: boolean;
   error: string | null;
   refreshing: boolean;
-  refetch: () => void;
+  refetch: () => Promise<void>;
+  reload: () => Promise<void>;
 }
 
 export function useAssets(): UseAssetsResult {
@@ -40,7 +41,11 @@ export function useAssets(): UseAssetsResult {
     setRefreshing(true);
     setError(null);
     try {
-      await fetch("/api/cron/update-prices", { cache: "no-store" }).catch(() => null);
+      const priceResponse = await fetch("/api/cron/update-prices", { cache: "no-store" });
+      if (!priceResponse.ok) {
+        const body = (await priceResponse.json()) as { error?: string };
+        throw new Error(body.error ?? `시세 동기화 실패 (HTTP ${priceResponse.status})`);
+      }
 
       // 데이터는 반드시 새로고침
       await fetchData(true);
@@ -51,9 +56,13 @@ export function useAssets(): UseAssetsResult {
     }
   }, [fetchData]);
 
+  const reload = useCallback(async () => {
+    await fetchData(true);
+  }, [fetchData]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refreshing, refetch };
+  return { data, loading, error, refreshing, refetch, reload };
 }

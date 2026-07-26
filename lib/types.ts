@@ -164,6 +164,21 @@ export interface DailyLogItem {
   accounts: AccountDailySnapshot[];
 }
 
+export type SyncJob = "prices" | "daily_log" | "benchmarks";
+export type SyncRunStatus = "success" | "partial" | "failed";
+export type SyncRunTrigger = "cron" | "manual";
+
+export interface SyncRun {
+  id: number;
+  job: SyncJob;
+  status: SyncRunStatus;
+  trigger: SyncRunTrigger;
+  startedAt: string;
+  finishedAt: string;
+  details: Record<string, unknown>;
+  errorMessage?: string;
+}
+
 export interface CryptoAssetRow {
   id: number;
   ticker: string;

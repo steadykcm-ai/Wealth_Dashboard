@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -18,6 +18,8 @@ import type {
   PortfolioChangeCandidate,
   PortfolioEvent,
   PortfolioEventType,
+  SyncJob,
+  SyncRun,
 } from "@/lib/types";
 
 type ProfitLogMeta = {
@@ -1029,12 +1031,14 @@ function SummaryCard({
   );
 }
 
-type DataSyncState = "ok" | "loading" | "error" | "empty";
+type DataSyncState = "ok" | "loading" | "error" | "stale" | "empty";
 
 interface DataSyncItem {
+  job: SyncJob;
   label: string;
   value: string;
   state: DataSyncState;
+  message?: string;
 }
 
 function formatLogDate(dateKey?: string | null): string | undefined {
@@ -1042,6 +1046,45 @@ function formatLogDate(dateKey?: string | null): string | undefined {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
   if (!match) return undefined;
   return `${match[1]}. ${Number(match[2])}. ${Number(match[3])}.`;
+}
+
+function formatSyncRunTime(timestamp: string): string {
+  return new Date(timestamp).toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function syncJobLabel(job: SyncJob): string {
+  if (job === "prices") return "현재가";
+  if (job === "daily_log") return "자산 로그";
+  return "벤치마크";
+}
+
+function syncRunDetail(run: SyncRun): string {
+  if (run.errorMessage) return run.errorMessage;
+  if (run.job === "prices") {
+    const updated = typeof run.details.updated === "number" ? run.details.updated : 0;
+    const totalCodes = typeof run.details.totalCodes === "number" ? run.details.totalCodes : 0;
+    const tokenSource = typeof run.details.tokenSource === "string" ? run.details.tokenSource : "unknown";
+    const tokenLabels: Record<string, string> = {
+      memory: "메모리 캐시",
+      database: "DB 캐시",
+      issued: "신규 발급",
+      unused: "토큰 미사용",
+      unknown: "토큰 상태 미확인",
+    };
+    return `${updated}/${totalCodes}종목 · ${tokenLabels[tokenSource] ?? tokenSource}`;
+  }
+  if (run.job === "daily_log") {
+    return typeof run.details.date === "string" ? run.details.date : "저장 완료";
+  }
+  const kospi = typeof run.details.KOSPI === "number" ? run.details.KOSPI : 0;
+  const spx = typeof run.details.SPX === "number" ? run.details.SPX : 0;
+  return `KOSPI ${kospi}건 · S&P 500 ${spx}건`;
 }
 
 function DataSyncStatus({
@@ -1052,6 +1095,11 @@ function DataSyncStatus({
   performanceError,
   assetsLoading,
   performanceLoading,
+  runs,
+  runsLoading,
+  runsError,
+  retryingJob,
+  onRetry,
 }: {
   priceUpdatedAt?: string;
   latestLogDate?: string | null;
@@ -1060,58 +1108,133 @@ function DataSyncStatus({
   performanceError: string | null;
   assetsLoading: boolean;
   performanceLoading: boolean;
+  runs: SyncRun[];
+  runsLoading: boolean;
+  runsError: string | null;
+  retryingJob: SyncJob | null;
+  onRetry: (job: SyncJob) => void;
 }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   const buildItem = (
+    job: SyncJob,
     label: string,
     value: string | undefined,
     loading: boolean,
     error: string | null
   ): DataSyncItem => {
-    if (loading) return { label, value: "확인 중", state: "loading" };
-    if (error) return { label, value: "조회 실패", state: "error" };
-    if (!value) return { label, value: "기록 없음", state: "empty" };
-    return { label, value, state: "ok" };
+    if (loading || runsLoading) return { job, label, value: "확인 중", state: "loading" };
+    if (error) return { job, label, value: "조회 실패", state: "error", message: error };
+
+    const latestRun = runs.find((run) => run.job === job);
+    const lastSuccessfulRun = runs.find(
+      (run) => run.job === job && (run.status === "success" || run.status === "partial")
+    );
+    if (latestRun?.status === "failed") {
+      return {
+        job,
+        label,
+        value: "갱신 실패",
+        state: "error",
+        message: latestRun.errorMessage,
+      };
+    }
+    if (!value) return { job, label, value: "기록 없음", state: "empty" };
+    if (!lastSuccessfulRun) {
+      return { job, label, value, state: "stale", message: runsError ?? "실행 이력이 없습니다." };
+    }
+
+    const staleHours = job === "daily_log" ? 36 : 72;
+    const elapsed = Date.now() - new Date(lastSuccessfulRun.finishedAt).getTime();
+    if (latestRun?.status === "partial" || elapsed > staleHours * 60 * 60 * 1000) {
+      return { job, label, value, state: "stale", message: "마지막 정상 갱신이 오래되었습니다." };
+    }
+    return { job, label, value, state: "ok" };
   };
 
   const items = [
-    buildItem("현재가", formatPriceUpdatedAt(priceUpdatedAt), assetsLoading, assetsError),
-    buildItem("자산 로그", formatLogDate(latestLogDate), performanceLoading, performanceError),
-    buildItem("벤치마크", formatLogDate(latestBenchmarkDate), performanceLoading, performanceError),
+    buildItem("prices", "현재가", formatPriceUpdatedAt(priceUpdatedAt), assetsLoading, assetsError),
+    buildItem("daily_log", "자산 로그", formatLogDate(latestLogDate), performanceLoading, performanceError),
+    buildItem("benchmarks", "벤치마크", formatLogDate(latestBenchmarkDate), performanceLoading, performanceError),
   ];
 
   const dotColors: Record<DataSyncState, string> = {
     ok: "#16a34a",
     loading: "#9ca3af",
     error: "#dc2626",
+    stale: "#d97706",
     empty: "#d97706",
   };
 
   return (
     <section
       aria-label="데이터 갱신 상태"
-      className="mx-4 mb-4 grid grid-cols-3 border-y border-[#e0e0e0] bg-white dark:border-[#2a3a4a] dark:bg-[#1a2332] md:mx-0 md:mb-6"
+      className="mx-4 mb-4 border-y border-[#e0e0e0] bg-white dark:border-[#2a3a4a] dark:bg-[#1a2332] md:mx-0 md:mb-6"
     >
-      {items.map((item) => (
-        <div
-          key={item.label}
-          className="min-w-0 border-r border-[#e0e0e0] px-3 py-2.5 last:border-r-0 dark:border-[#2a3a4a] md:px-4"
-          title={item.state === "error" ? (item.label === "현재가" ? assetsError ?? undefined : performanceError ?? undefined) : undefined}
-        >
-          <div className="flex items-center gap-1.5">
-            <span
-              aria-hidden="true"
-              className="h-2 w-2 shrink-0 rounded-full"
-              style={{ backgroundColor: dotColors[item.state] }}
-            />
-            <span className="truncate text-[11px] font-medium text-gray-500 dark:text-gray-400">
-              {item.label}
-            </span>
+      <div className="grid grid-cols-3">
+        {items.map((item) => (
+          <div
+            key={item.job}
+            className="relative min-w-0 border-r border-[#e0e0e0] px-3 py-2.5 last:border-r-0 dark:border-[#2a3a4a] md:px-4"
+            title={item.message}
+          >
+            <div className="flex items-center gap-1.5 pr-5">
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: dotColors[item.state] }}
+              />
+              <span className="truncate text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                {item.label}
+              </span>
+            </div>
+            <p className="mt-1 truncate text-xs font-semibold text-gray-800 dark:text-gray-100">
+              {item.value}
+            </p>
+            {(item.state === "error" || item.state === "stale" || item.state === "empty") && (
+              <button
+                type="button"
+                onClick={() => onRetry(item.job)}
+                disabled={retryingJob !== null}
+                className="absolute right-2 top-2 text-sm text-gray-400 hover:text-[#3d47cf] disabled:opacity-40"
+                title={`${item.label} 다시 실행`}
+                aria-label={`${item.label} 다시 실행`}
+              >
+                {retryingJob === item.job ? "…" : "↻"}
+              </button>
+            )}
           </div>
-          <p className="mt-1 truncate text-xs font-semibold text-gray-800 dark:text-gray-100">
-            {item.value}
-          </p>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => setHistoryOpen((open) => !open)}
+        className="flex w-full items-center justify-between border-t border-[#e0e0e0] px-3 py-2 text-left text-[11px] font-medium text-gray-500 hover:bg-[#f8f9fc] dark:border-[#2a3a4a] dark:text-gray-400 dark:hover:bg-[#202a38] md:px-4"
+      >
+        <span>최근 동기화 이력</span>
+        <span aria-hidden="true">{historyOpen ? "▲" : "▼"}</span>
+      </button>
+      {historyOpen && (
+        <div className="border-t border-[#e0e0e0] dark:border-[#2a3a4a]">
+          {runs.length === 0 ? (
+            <p className="px-4 py-3 text-xs text-gray-400">기록된 실행 이력이 없습니다.</p>
+          ) : (
+            runs.slice(0, 9).map((run) => (
+              <div
+                key={run.id}
+                className="grid grid-cols-[72px_72px_minmax(0,1fr)] gap-2 border-b border-[#f0f0f0] px-3 py-2 text-xs last:border-b-0 dark:border-[#2a3a4a] md:grid-cols-[90px_100px_minmax(0,1fr)] md:px-4"
+              >
+                <span className="font-medium text-gray-700 dark:text-gray-200">{syncJobLabel(run.job)}</span>
+                <span className={run.status === "failed" ? "text-red-600" : run.status === "partial" ? "text-amber-600" : "text-green-600"}>
+                  {run.status === "failed" ? "실패" : run.status === "partial" ? "일부 완료" : "완료"}
+                </span>
+                <span className="min-w-0 truncate text-gray-500 dark:text-gray-400" title={syncRunDetail(run)}>
+                  {formatSyncRunTime(run.finishedAt)} · {syncRunDetail(run)}
+                </span>
+              </div>
+            ))
+          )}
         </div>
-      ))}
+      )}
     </section>
   );
 }
@@ -2215,7 +2338,7 @@ function PortfolioEventReviewModal({
 }
 
 export default function DashboardPage() {
-  const { data, loading, error, refreshing, refetch } = useAssets();
+  const { data, loading, error, refreshing, refetch, reload } = useAssets();
   const [activeTab, setActiveTab] = useState<string>("전체");
   const [itemOverrides, setItemOverrides] = useState<Record<string, Partial<AssetItem>>>({});
   const [cashOverrides, setCashOverrides] = useState<Record<string, number>>({});
@@ -2234,6 +2357,60 @@ export default function DashboardPage() {
   const [savingProfit, setSavingProfit] = useState(false);
   const [todayQuotes, setTodayQuotes] = useState<Record<string, TodayQuote>>({});
   const [todayQuotesLoading, setTodayQuotesLoading] = useState(false);
+  const [syncRuns, setSyncRuns] = useState<SyncRun[]>([]);
+  const [syncRunsLoading, setSyncRunsLoading] = useState(true);
+  const [syncRunsError, setSyncRunsError] = useState<string | null>(null);
+  const [retryingJob, setRetryingJob] = useState<SyncJob | null>(null);
+
+  const fetchSyncRuns = useCallback(async () => {
+    setSyncRunsLoading(true);
+    setSyncRunsError(null);
+    try {
+      const res = await fetch("/api/sync-runs", { cache: "no-store" });
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const json = await res.json() as { runs: SyncRun[] };
+      setSyncRuns(json.runs);
+    } catch (syncError: unknown) {
+      setSyncRunsError(syncError instanceof Error ? syncError.message : "동기화 이력을 불러오지 못했습니다.");
+    } finally {
+      setSyncRunsLoading(false);
+    }
+  }, []);
+
+  const fetchPerformanceData = useCallback(async () => {
+    setPerformanceLoading(true);
+    setPerformanceError(null);
+    try {
+      const res = await fetch("/api/profits", { cache: "no-store" });
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const json = (await res.json()) as {
+        data: DailyLogItem[];
+        benchmarks?: BenchmarkSeries[];
+        portfolioEvents?: PortfolioEvent[];
+        changeCandidates?: PortfolioChangeCandidate[];
+        meta?: ProfitLogMeta;
+      };
+      setProfitLogs(json.data);
+      setBenchmarkSeries(json.benchmarks ?? []);
+      setPortfolioEvents(json.portfolioEvents ?? []);
+      setChangeCandidates(json.changeCandidates ?? []);
+      setProfitLogMeta(json.meta ?? null);
+    } catch (performanceFetchError: unknown) {
+      setPerformanceError(
+        performanceFetchError instanceof Error
+          ? performanceFetchError.message
+          : "성과 데이터를 불러오지 못했습니다."
+      );
+    } finally {
+      setPerformanceLoading(false);
+    }
+  }, []);
 
   async function saveItem(item: AssetItem, field: EditableAssetField, value: number) {
     const res = await fetch("/api/assets/item", {
@@ -2248,7 +2425,7 @@ export default function DashboardPage() {
     const key = `${item.id ?? ""}`;
     setItemOverrides((prev) => ({ ...prev, [key]: { ...(prev[key] ?? {}), [field]: value } }));
     // 대시보드 데이터 갱신
-    await refetch();
+    await reload();
   }
 
   async function saveCash(account: AccountGroup, value: number) {
@@ -2268,7 +2445,7 @@ export default function DashboardPage() {
       const key = `${account.name}`;
       setCashOverrides((prev) => ({ ...prev, [key]: value }));
       // 대시보드 데이터 갱신
-      await refetch();
+      await reload();
     } catch (err) {
       throw err instanceof Error ? err : new Error("현금 저장 실패");
     }
@@ -2277,38 +2454,44 @@ export default function DashboardPage() {
   function handleItemAdded() {
     setItemOverrides({});
     setDeletedKeys(new Set());
-    refetch();
+    void reload();
   }
 
   useEffect(() => {
-    (async () => {
-      setPerformanceLoading(true);
-      setPerformanceError(null);
-      try {
-        const res = await fetch("/api/profits");
-        if (!res.ok) {
-          const body = await res.json() as { error?: string };
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        const json = (await res.json()) as {
-          data: DailyLogItem[];
-          benchmarks?: BenchmarkSeries[];
-          portfolioEvents?: PortfolioEvent[];
-          changeCandidates?: PortfolioChangeCandidate[];
-          meta?: ProfitLogMeta;
-        };
-        setProfitLogs(json.data);
-        setBenchmarkSeries(json.benchmarks ?? []);
-        setPortfolioEvents(json.portfolioEvents ?? []);
-        setChangeCandidates(json.changeCandidates ?? []);
-        setProfitLogMeta(json.meta ?? null);
-      } catch (err: unknown) {
-        setPerformanceError(err instanceof Error ? err.message : "성과 데이터를 불러오지 못했습니다.");
-      } finally {
-        setPerformanceLoading(false);
+    fetchPerformanceData();
+    fetchSyncRuns();
+  }, [fetchPerformanceData, fetchSyncRuns]);
+
+  async function retrySyncJob(job: SyncJob) {
+    if (retryingJob) return;
+    setRetryingJob(job);
+    setSyncRunsError(null);
+    try {
+      const res = await fetch("/api/sync-runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job }),
+      });
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? "동기화 재시도에 실패했습니다.");
       }
-    })();
-  }, []);
+
+      if (job === "prices") await reload();
+      if (job === "daily_log" || job === "benchmarks") await fetchPerformanceData();
+      await fetchSyncRuns();
+    } catch (syncError: unknown) {
+      setSyncRunsError(syncError instanceof Error ? syncError.message : "동기화 재시도에 실패했습니다.");
+      await fetchSyncRuns();
+    } finally {
+      setRetryingJob(null);
+    }
+  }
+
+  async function refreshDashboard() {
+    await refetch();
+    await fetchSyncRuns();
+  }
 
   async function savePortfolioEvent(
     candidate: PortfolioChangeCandidate,
@@ -2433,7 +2616,7 @@ export default function DashboardPage() {
     }
     setItemOverrides({});
     setDeletedKeys(new Set());
-    refetch();
+    void reload();
   }
 
   const summary = data?.summary;
@@ -2621,7 +2804,7 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refetch} refreshing={refreshing} />
+      <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refreshDashboard} refreshing={refreshing} />
 
       <main className="flex-1 overflow-auto pt-[88px] md:pt-0 md:px-8 md:py-8 md:ml-56">
         {/* 데스크톱 헤더 */}
@@ -2629,7 +2812,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
           <div className="flex items-center gap-2">
             <button
-              onClick={refetch}
+              onClick={refreshDashboard}
               disabled={refreshing}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: "#3d47cf" }}
@@ -2659,6 +2842,11 @@ export default function DashboardPage() {
           performanceError={performanceError}
           assetsLoading={loading}
           performanceLoading={performanceLoading}
+          runs={syncRuns}
+          runsLoading={syncRunsLoading}
+          runsError={syncRunsError}
+          retryingJob={retryingJob}
+          onRetry={retrySyncJob}
         />
 
         {/* Summary 카드 */}
