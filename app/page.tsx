@@ -3366,6 +3366,15 @@ export default function DashboardPage() {
     });
   }
 
+  const rebalanceGroup = activeTab === "개별주식" || activeTab === "개인연금"
+    ? summary?.groups.find((candidate) => candidate.category === activeTab) ?? null
+    : null;
+  const rebalanceCategory: RebalanceCategory | null = activeTab === "개별주식"
+    ? "stocks"
+    : activeTab === "개인연금"
+      ? "pension"
+      : null;
+
   const title = activeTab === "전체" ? "전체 자산 현황" : activeTab;
   const latestBenchmarkDate = benchmarkSeries
     .flatMap((series) => series.points.map((point) => point.date))
@@ -3519,17 +3528,9 @@ export default function DashboardPage() {
           />
         )}
 
-        {(activeTab === "개별주식" || activeTab === "개인연금") && summary && (() => {
-          const group = summary.groups.find((candidate) => candidate.category === activeTab);
-          if (!group) return null;
-          return (
-            <RebalancePanel
-              key={activeTab}
-              group={group}
-              category={activeTab === "개별주식" ? "stocks" : "pension"}
-            />
-          );
-        })()}
+        {rebalanceGroup && rebalanceCategory && (
+          <RebalancePanel group={rebalanceGroup} category={rebalanceCategory} />
+        )}
 
         {/* 전체 탭: 카테고리별 계좌 현황 */}
         {activeTab === "전체" && summary && (
