@@ -924,6 +924,40 @@ function RebalancePanel({
     return rows.map((row, index) => ({ ...row, recommendedBuy: integerBuys[index] }));
   }, [contributionAmount, holdingsTotal, items, targetInputs, targetSumIsValid]);
 
+  const orderPlan = useMemo(() => {
+    const roundedContribution = Math.round(contributionAmount);
+    const finalPortfolioValue = holdingsTotal + roundedContribution;
+    const rows = planRows.map((row) => {
+      const supportsUnitOrder = row.item.valuationMode !== "manual"
+        && Boolean(row.item.code)
+        && row.item.currentPrice > 0;
+      const orderQuantity = supportsUnitOrder
+        ? Math.floor(row.recommendedBuy / row.item.currentPrice)
+        : null;
+      const orderAmount = orderQuantity === null
+        ? row.recommendedBuy
+        : Math.round(orderQuantity * row.item.currentPrice);
+      const projectedWeight = finalPortfolioValue > 0
+        ? ((row.item.currentValue + orderAmount) / finalPortfolioValue) * 100
+        : 0;
+
+      return {
+        ...row,
+        supportsUnitOrder,
+        orderQuantity,
+        orderAmount,
+        projectedWeight,
+        projectedDifference: row.targetWeight - projectedWeight,
+      };
+    });
+    const totalOrderAmount = rows.reduce((sum, row) => sum + row.orderAmount, 0);
+    const remainingCash = Math.max(0, roundedContribution - totalOrderAmount);
+    const currentDrift = rows.reduce((sum, row) => sum + Math.abs(row.difference), 0) / 2;
+    const projectedDrift = rows.reduce((sum, row) => sum + Math.abs(row.projectedDifference), 0) / 2;
+
+    return { rows, totalOrderAmount, remainingCash, currentDrift, projectedDrift };
+  }, [contributionAmount, holdingsTotal, planRows]);
+
   useEffect(() => {
     let cancelled = false;
     setLoadingTargets(true);
@@ -1058,6 +1092,23 @@ function RebalancePanel({
             </span>
           </div>
 
+          {targetSumIsValid && contributionAmount > 0 && (
+            <div className="grid grid-cols-3 gap-3 border-b border-[#e0e0e0] px-4 py-3 text-xs dark:border-[#2a3a4a]">
+              <div>
+                <span className="block text-[11px] text-gray-400">주문 예정</span>
+                <strong className="mt-0.5 block text-gray-900 dark:text-white">{formatKRW(orderPlan.totalOrderAmount)}</strong>
+              </div>
+              <div className="text-center">
+                <span className="block text-[11px] text-gray-400">남는 현금</span>
+                <strong className="mt-0.5 block text-gray-900 dark:text-white">{formatKRW(orderPlan.remainingCash)}</strong>
+              </div>
+              <div className="text-right">
+                <span className="block text-[11px] text-gray-400">목표 격차</span>
+                <strong className="mt-0.5 block text-[#3d47cf]">{orderPlan.currentDrift.toFixed(2)} → {orderPlan.projectedDrift.toFixed(2)}%p</strong>
+              </div>
+            </div>
+          )}
+
           {targetError && <p role="alert" className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{targetError}</p>}
 
           <div className="hidden grid-cols-[minmax(220px,1fr)_90px_100px_90px_120px] gap-3 border-b border-[#e0e0e0] bg-[#f8f9fc] px-4 py-2 text-right text-[11px] font-semibold text-gray-400 dark:border-[#2a3a4a] dark:bg-[#0f1923] md:grid">
@@ -1065,13 +1116,13 @@ function RebalancePanel({
             <span>현재 비중</span>
             <span>목표 비중</span>
             <span>차이</span>
-            <span>매수 필요액</span>
+            <span>주문 제안</span>
           </div>
 
           <div className="max-h-[560px] overflow-y-auto">
             {loadingTargets ? (
               <p className="py-10 text-center text-sm text-gray-400">목표 비중 불러오는 중</p>
-            ) : planRows.map((row) => (
+            ) : orderPlan.rows.map((row) => (
               <div key={row.item.id} className="grid grid-cols-[minmax(0,1fr)_88px] items-center gap-x-3 gap-y-2 border-b border-[#f0f0f0] px-4 py-3 last:border-b-0 dark:border-[#2a3a4a] md:grid-cols-[minmax(220px,1fr)_90px_100px_90px_120px]">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{row.item.name}</p>
@@ -1103,8 +1154,18 @@ function RebalancePanel({
                   </span>
                 </div>
                 <div className="text-right text-xs font-semibold text-gray-900 dark:text-white md:col-auto">
-                  <span className="mr-1 font-normal text-gray-400 md:hidden">매수</span>
-                  {targetSumIsValid && contributionAmount > 0 ? formatKRW(row.recommendedBuy) : "—"}
+                  <span className="mr-1 font-normal text-gray-400 md:hidden">주문</span>
+                  {targetSumIsValid && contributionAmount > 0 ? (
+                    <>
+                      <span className="block">
+                        {row.supportsUnitOrder ? `${row.orderQuantity?.toLocaleString("ko-KR")}주` : formatKRW(row.orderAmount)}
+                      </span>
+                      <span className="mt-0.5 block text-[10px] font-normal text-gray-400">
+                        {row.supportsUnitOrder ? `${formatKRW(row.orderAmount)} · ` : "금액 주문 · "}
+                        주문 후 {row.projectedWeight.toFixed(2)}%
+                      </span>
+                    </>
+                  ) : "—"}
                 </div>
               </div>
             ))}
