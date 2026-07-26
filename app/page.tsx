@@ -1390,15 +1390,8 @@ interface AllocationDriftItem {
   difference: number;
 }
 
-function AllocationDriftAlert({
-  groups,
-  onTabChange,
-}: {
-  groups: AssetGroup[];
-  onTabChange: (tab: string) => void;
-}) {
+function useAllocationDriftItems(groups: AssetGroup[]): AllocationDriftItem[] {
   const [targets, setTargets] = useState<Record<RebalanceCategory, RebalanceTarget[]>>({ stocks: [], pension: [] });
-  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1424,7 +1417,7 @@ function AllocationDriftAlert({
     };
   }, []);
 
-  const driftItems = useMemo(() => ([
+  return useMemo(() => ([
     { key: "stocks" as const, label: "개별주식" as const },
     { key: "pension" as const, label: "개인연금" as const },
   ]).flatMap(({ key, label }) => {
@@ -1444,27 +1437,6 @@ function AllocationDriftAlert({
         : [];
     });
   }).sort((left, right) => Math.abs(right.difference) - Math.abs(left.difference)), [groups, targets]);
-
-  if (driftItems.length === 0) return null;
-
-  return (
-    <section className="mx-4 mb-4 border-y border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/30 md:mx-0" aria-label="목표 비중 이탈">
-      <button type="button" onClick={() => setIsExpanded((previous) => !previous)} aria-expanded={isExpanded} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-amber-900 dark:text-amber-200">
-        <span><span className="block text-sm font-semibold">목표 비중 이탈</span><span className="block text-xs opacity-75">±3%p 이상 {driftItems.length}종목</span></span>
-        <span className="text-sm opacity-70">{isExpanded ? "▲" : "▼"}</span>
-      </button>
-      {isExpanded && (
-        <div className="border-t border-amber-200 px-3 py-1 dark:border-amber-900/60">
-          {driftItems.slice(0, 5).map((item) => (
-            <button key={`${item.category}-${item.name}`} type="button" onClick={() => onTabChange(item.category)} className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-amber-200/70 py-2.5 text-left last:border-b-0 dark:border-amber-900/40">
-              <span className="min-w-0"><span className="block truncate text-xs font-semibold text-amber-900 dark:text-amber-200">{item.name}</span><span className="text-[10px] text-amber-700 dark:text-amber-300">{item.category} · 목표 {item.targetWeight.toFixed(2)}%</span></span>
-              <span className="text-right text-xs font-semibold text-amber-900 dark:text-amber-200">현재 {item.currentWeight.toFixed(2)}% · {item.difference > 0 ? "+" : ""}{item.difference.toFixed(2)}%p</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
-  );
 }
 
 function PortfolioRiskPanel({ groups, logs, events }: { groups: AssetGroup[]; logs: DailyLogItem[]; events: PortfolioEvent[] }) {
@@ -2244,17 +2216,124 @@ function SummaryCard({
   );
 }
 
-function DataQualityAlert({ issues }: { issues: DataQualityIssue[] }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  if (issues.length === 0) return null;
+interface NotificationItem {
+  key: string;
+  severity: "warning" | "critical";
+  title: string;
+  detail: string;
+  action?: "changes" | "stocks" | "pension";
+}
 
-  const hasCriticalIssue = issues.some((issue) => issue.severity === "critical");
+function NotificationCenter({
+  issues,
+  runs,
+  changeCandidates,
+  driftItems,
+  onOpenChanges,
+  onTabChange,
+}: {
+  issues: DataQualityIssue[];
+  runs: SyncRun[];
+  changeCandidates: PortfolioChangeCandidate[];
+  driftItems: AllocationDriftItem[];
+  onOpenChanges: () => void;
+  onTabChange: (tab: string) => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [readKeys, setReadKeys] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/notification-reads", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("알림 확인 기록 조회 실패");
+        return response.json() as Promise<{ keys: string[] }>;
+      })
+      .then((body) => {
+        if (!cancelled) setReadKeys(new Set(body.keys));
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  const notifications = useMemo<NotificationItem[]>(() => {
+    const items: NotificationItem[] = issues.map((issue) => ({
+      key: `quality:${issue.id}`,
+      severity: issue.severity,
+      title: issue.title,
+      detail: issue.detail,
+    }));
+    (["prices", "daily_log", "benchmarks"] as SyncJob[]).forEach((job) => {
+      const latest = runs.find((run) => run.job === job);
+      const latestSuccess = runs.find((run) => run.job === job && run.status !== "failed");
+      const staleHours = job === "daily_log" ? 36 : 72;
+      const stale = !latestSuccess || Date.now() - new Date(latestSuccess.finishedAt).getTime() > staleHours * 60 * 60 * 1000;
+      if (latest?.status === "failed" || latest?.status === "partial" || stale) {
+        const timestamp = latest?.finishedAt ?? "none";
+        items.push({
+          key: `sync:${job}:${timestamp}:${latest?.status ?? "missing"}`,
+          severity: latest?.status === "failed" ? "critical" : "warning",
+          title: `${syncJobLabel(job)} 갱신 ${latest?.status === "failed" ? "실패" : "확인 필요"}`,
+          detail: latest?.errorMessage ?? (latest ? `${formatSyncRunTime(latest.finishedAt)} · ${syncRunDetail(latest)}` : "실행 이력이 없습니다."),
+        });
+      }
+    });
+    if (changeCandidates.length > 0) {
+      const latestDate = [...changeCandidates].sort((left, right) => right.date.localeCompare(left.date))[0]?.date ?? "unknown";
+      items.push({
+        key: `changes:${latestDate}:${changeCandidates.length}`,
+        severity: "warning",
+        title: "자산 변동 확인",
+        detail: `${changeCandidates.length}건의 입출금 또는 평가 변동을 분류해야 합니다.`,
+        action: "changes",
+      });
+    }
+    driftItems.forEach((item) => items.push({
+      key: `drift:${item.category}:${item.name}:${Math.round(item.difference * 10)}`,
+      severity: "warning",
+      title: `${item.name} 목표 비중 이탈`,
+      detail: `현재 ${item.currentWeight.toFixed(1)}% · 목표 ${item.targetWeight.toFixed(1)}% · ${item.difference > 0 ? "+" : ""}${item.difference.toFixed(1)}%p`,
+      action: item.category === "개별주식" ? "stocks" : "pension",
+    }));
+    return items;
+  }, [changeCandidates, driftItems, issues, runs]);
+  const unread = notifications.filter((item) => !readKeys.has(item.key));
+
+  async function markRead(keys: string[]) {
+    if (keys.length === 0) return;
+    setReadKeys((previous) => new Set([...previous, ...keys]));
+    try {
+      const response = await fetch("/api/notification-reads", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keys }),
+      });
+      if (!response.ok) throw new Error("알림 확인 처리 실패");
+    } catch {
+      setReadKeys((previous) => {
+        const next = new Set(previous);
+        keys.forEach((key) => next.delete(key));
+        return next;
+      });
+    }
+  }
+
+  function runAction(item: NotificationItem) {
+    if (item.action === "changes") onOpenChanges();
+    if (item.action === "stocks") onTabChange("개별주식");
+    if (item.action === "pension") onTabChange("개인연금");
+    void markRead([item.key]);
+  }
+
+  if (unread.length === 0) return null;
+
+  const hasCriticalIssue = unread.some((issue) => issue.severity === "critical");
   const colorClasses = hasCriticalIssue
     ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
     : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200";
 
   return (
-    <section className={`mx-4 mb-4 border-y md:mx-0 ${colorClasses}`} aria-label="데이터 확인 필요">
+    <section className={`mx-4 mb-4 border-y md:mx-0 ${colorClasses}`} aria-label="알림센터">
       <button
         type="button"
         onClick={() => setIsExpanded((previous) => !previous)}
@@ -2262,17 +2341,23 @@ function DataQualityAlert({ issues }: { issues: DataQualityIssue[] }) {
         className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
       >
         <span>
-          <span className="block text-sm font-semibold">데이터 확인 필요</span>
-          <span className="block text-xs opacity-75">{issues.length}건</span>
+          <span className="block text-sm font-semibold">알림센터</span>
+          <span className="block text-xs opacity-75">확인하지 않은 알림 {unread.length}건</span>
         </span>
         <span className="text-sm opacity-70">{isExpanded ? "▲" : "▼"}</span>
       </button>
       {isExpanded && (
         <div className="border-t border-current/15 px-3 py-1">
-          {issues.map((issue) => (
-            <div key={issue.id} className="flex items-start justify-between gap-3 border-b border-current/10 py-2.5 last:border-b-0">
-              <span className="text-xs font-semibold">{issue.title}</span>
-              <span className="max-w-[60%] text-right text-xs opacity-75">{issue.detail}</span>
+          <div className="flex justify-end border-b border-current/10 py-2">
+            <button type="button" onClick={() => void markRead(unread.map((item) => item.key))} className="text-xs font-semibold underline underline-offset-2">모두 확인</button>
+          </div>
+          {unread.slice(0, 10).map((item) => (
+            <div key={item.key} className="flex items-start justify-between gap-3 border-b border-current/10 py-2.5 last:border-b-0">
+              <span className="min-w-0"><span className="block text-xs font-semibold">{item.title}</span><span className="mt-0.5 block text-[11px] opacity-75">{item.detail}</span></span>
+              <span className="flex shrink-0 gap-2">
+                {item.action && <button type="button" onClick={() => runAction(item)} className="rounded-md border border-current/30 px-2 py-1 text-[11px] font-semibold">보기</button>}
+                <button type="button" onClick={() => void markRead([item.key])} className="rounded-md border border-current/30 px-2 py-1 text-[11px]">확인</button>
+              </span>
             </div>
           ))}
         </div>
@@ -4302,6 +4387,7 @@ export default function DashboardPage() {
     () => buildDataQualityIssues(summary, profitLogs, portfolioEvents),
     [portfolioEvents, profitLogs, summary]
   );
+  const allocationDriftItems = useAllocationDriftItems(adjustedGroups);
   const retirementStockAssets = adjustedGroups.find((group) => group.category === "개별주식")?.totalValue ?? 0;
   const retirementPensionAssets = adjustedGroups.find((group) => group.category === "개인연금")?.totalValue ?? 0;
 
@@ -4353,8 +4439,14 @@ export default function DashboardPage() {
           onRetry={retrySyncJob}
         />
 
-        <DataQualityAlert issues={dataQualityIssues} />
-        <AllocationDriftAlert groups={adjustedGroups} onTabChange={setActiveTab} />
+        <NotificationCenter
+          issues={dataQualityIssues}
+          runs={syncRuns}
+          changeCandidates={changeCandidates}
+          driftItems={allocationDriftItems}
+          onOpenChanges={() => setEventReviewOpen(true)}
+          onTabChange={setActiveTab}
+        />
 
         {/* Summary 카드 */}
         <div className="grid grid-cols-3 gap-2 px-4 md:px-0 mb-4 md:mb-6 md:gap-4">
@@ -4380,22 +4472,6 @@ export default function DashboardPage() {
             value={loading ? "—" : formatRate(tabSummary?.returnRate ?? 0)}
           />
         </div>
-
-        {changeCandidates.length > 0 && (
-          <div className="mx-4 mb-4 flex items-center justify-between gap-3 border-y border-amber-200 bg-amber-50 px-3 py-2.5 md:mx-0 dark:border-amber-900/60 dark:bg-amber-950/30">
-            <div>
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">변동 확인</p>
-              <p className="text-xs text-amber-700 dark:text-amber-300">{changeCandidates.length}건</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEventReviewOpen(true)}
-              className="rounded-md bg-amber-700 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800"
-            >
-              확인
-            </button>
-          </div>
-        )}
 
         {/* 전체 탭: 포트폴리오 구성 섹션 */}
         {activeTab === "전체" && (
