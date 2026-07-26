@@ -10,6 +10,7 @@ import type {
   AssetCategory,
   AssetItem,
   AssetGroup,
+  AssetSummary,
   BreakdownItem,
   PortfolioBreakdown,
   AccountGroup,
@@ -167,6 +168,93 @@ function isAccountStale(account: AccountGroup, nowMs = Date.now()): boolean {
     const staleDays = item.valuationMode === "manual" ? 45 : 5;
     return nowMs - updatedMs > staleDays * 24 * 60 * 60 * 1000;
   });
+}
+
+interface DataQualityIssue {
+  id: string;
+  severity: "warning" | "critical";
+  title: string;
+  detail: string;
+}
+
+function summarizeAssetNames(items: AssetItem[]): string {
+  const names = items.slice(0, 2).map((item) => item.name).join(", ");
+  return items.length > 2 ? `${names} 외 ${items.length - 2}개` : names;
+}
+
+function buildDataQualityIssues(
+  summary: AssetSummary | undefined,
+  logs: DailyLogItem[],
+  events: PortfolioEvent[],
+  nowMs = Date.now()
+): DataQualityIssue[] {
+  const issues: DataQualityIssue[] = [];
+  const items = summary?.groups.flatMap((group) => group.items) ?? [];
+  const marketItems = items.filter((item) => item.valuationMode !== "manual");
+  const missingPrices = marketItems.filter((item) => !item.priceUpdatedAt || item.currentPrice <= 0);
+  const stalePrices = marketItems.filter((item) => {
+    if (!item.priceUpdatedAt || item.currentPrice <= 0) return false;
+    return nowMs - new Date(item.priceUpdatedAt).getTime() > 5 * 24 * 60 * 60 * 1000;
+  });
+  const staleValuations = items.filter((item) => {
+    if (item.valuationMode !== "manual") return false;
+    if (!item.valuationUpdatedAt) return true;
+    return nowMs - new Date(item.valuationUpdatedAt).getTime() > 45 * 24 * 60 * 60 * 1000;
+  });
+
+  if (missingPrices.length > 0) {
+    issues.push({
+      id: "missing-prices",
+      severity: "critical",
+      title: `현재가 누락 ${missingPrices.length}종목`,
+      detail: summarizeAssetNames(missingPrices),
+    });
+  }
+  if (stalePrices.length > 0) {
+    issues.push({
+      id: "stale-prices",
+      severity: "warning",
+      title: `5일 넘은 현재가 ${stalePrices.length}종목`,
+      detail: summarizeAssetNames(stalePrices),
+    });
+  }
+  if (staleValuations.length > 0) {
+    issues.push({
+      id: "stale-valuations",
+      severity: "warning",
+      title: `45일 넘은 수동평가 ${staleValuations.length}종목`,
+      detail: summarizeAssetNames(staleValuations),
+    });
+  }
+
+  const sortedLogs = [...logs].sort((left, right) => left.date.localeCompare(right.date));
+  const previousLog = sortedLogs.at(-2);
+  const latestLog = sortedLogs.at(-1);
+  if (previousLog && latestLog) {
+    ([
+      ["stocks", "개별주식", previousLog.stocks.total, latestLog.stocks.total],
+      ["pension", "개인연금", previousLog.pension.total, latestLog.pension.total],
+    ] as const).forEach(([category, label, previousValue, latestValue]) => {
+      if (previousValue <= 0) return;
+      const change = latestValue - previousValue;
+      const changeRate = (change / previousValue) * 100;
+      const hasClassifiedEvent = events.some((event) => (
+        event.date === latestLog.date
+        && event.category === category
+        && event.eventType !== "ignored"
+      ));
+      if (Math.abs(change) >= 5_000_000 && Math.abs(changeRate) >= 10 && !hasClassifiedEvent) {
+        issues.push({
+          id: `abrupt-${category}-${latestLog.date}`,
+          severity: "warning",
+          title: `${label} 자산 급변`,
+          detail: `${previousLog.date} 대비 ${change >= 0 ? "+" : ""}${formatKRW(change)} (${changeRate >= 0 ? "+" : ""}${changeRate.toFixed(1)}%)`,
+        });
+      }
+    });
+  }
+
+  return issues;
 }
 
 function accountValueWithCashOverride(
@@ -1433,6 +1521,43 @@ function SummaryCard({
       </span>
       {sub && <span className="text-xs text-gray-400">{sub}</span>}
     </div>
+  );
+}
+
+function DataQualityAlert({ issues }: { issues: DataQualityIssue[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  if (issues.length === 0) return null;
+
+  const hasCriticalIssue = issues.some((issue) => issue.severity === "critical");
+  const colorClasses = hasCriticalIssue
+    ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+    : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200";
+
+  return (
+    <section className={`mx-4 mb-4 border-y md:mx-0 ${colorClasses}`} aria-label="데이터 확인 필요">
+      <button
+        type="button"
+        onClick={() => setIsExpanded((previous) => !previous)}
+        aria-expanded={isExpanded}
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+      >
+        <span>
+          <span className="block text-sm font-semibold">데이터 확인 필요</span>
+          <span className="block text-xs opacity-75">{issues.length}건</span>
+        </span>
+        <span className="text-sm opacity-70">{isExpanded ? "▲" : "▼"}</span>
+      </button>
+      {isExpanded && (
+        <div className="border-t border-current/15 px-3 py-1">
+          {issues.map((issue) => (
+            <div key={issue.id} className="flex items-start justify-between gap-3 border-b border-current/10 py-2.5 last:border-b-0">
+              <span className="text-xs font-semibold">{issue.title}</span>
+              <span className="max-w-[60%] text-right text-xs opacity-75">{issue.detail}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -3453,6 +3578,10 @@ export default function DashboardPage() {
     .flatMap((series) => series.points.map((point) => point.date))
     .sort()
     .at(-1);
+  const dataQualityIssues = useMemo(
+    () => buildDataQualityIssues(summary, profitLogs, portfolioEvents),
+    [portfolioEvents, profitLogs, summary]
+  );
 
   return (
     <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
@@ -3501,6 +3630,8 @@ export default function DashboardPage() {
           retryingJob={retryingJob}
           onRetry={retrySyncJob}
         />
+
+        <DataQualityAlert issues={dataQualityIssues} />
 
         {/* Summary 카드 */}
         <div className="grid grid-cols-3 gap-2 px-4 md:px-0 mb-4 md:mb-6 md:gap-4">
