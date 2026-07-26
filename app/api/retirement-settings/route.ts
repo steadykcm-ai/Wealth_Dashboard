@@ -9,6 +9,11 @@ const DEFAULT_SETTINGS: RetirementSettings = {
   monthlyContribution: 1_000_000,
   monthlyLivingCost: 3_000_000,
   publicPensionMonthly: 1_000_000,
+  publicPensionStartAge: 65,
+  privatePensionStartAge: 60,
+  pensionContributionRatio: 50,
+  monthlyContributionAfterRetirement: 0,
+  withdrawalPriority: "pension_first",
   expectedReturnRate: 5,
   inflationRate: 2,
 };
@@ -20,6 +25,11 @@ interface RetirementSettingsRow {
   monthly_contribution: number;
   monthly_living_cost: number;
   public_pension_monthly: number;
+  public_pension_start_age: number;
+  private_pension_start_age: number;
+  pension_contribution_ratio: number;
+  monthly_contribution_after_retirement: number;
+  withdrawal_priority: RetirementSettings["withdrawalPriority"];
   expected_return_rate: number;
   inflation_rate: number;
   updated_at: string;
@@ -33,6 +43,11 @@ function toSettings(row: RetirementSettingsRow): RetirementSettings {
     monthlyContribution: Number(row.monthly_contribution),
     monthlyLivingCost: Number(row.monthly_living_cost),
     publicPensionMonthly: Number(row.public_pension_monthly),
+    publicPensionStartAge: Number(row.public_pension_start_age),
+    privatePensionStartAge: Number(row.private_pension_start_age),
+    pensionContributionRatio: Number(row.pension_contribution_ratio),
+    monthlyContributionAfterRetirement: Number(row.monthly_contribution_after_retirement),
+    withdrawalPriority: row.withdrawal_priority,
     expectedReturnRate: Number(row.expected_return_rate),
     inflationRate: Number(row.inflation_rate),
     updatedAt: row.updated_at,
@@ -50,6 +65,16 @@ function isValidSettings(settings: RetirementSettings): boolean {
     && settings.monthlyContribution >= 0
     && settings.monthlyLivingCost >= 0
     && settings.publicPensionMonthly >= 0
+    && Number.isInteger(settings.publicPensionStartAge)
+    && Number.isInteger(settings.privatePensionStartAge)
+    && settings.publicPensionStartAge >= settings.retirementAge
+    && settings.publicPensionStartAge <= settings.lifeExpectancy
+    && settings.privatePensionStartAge >= settings.retirementAge
+    && settings.privatePensionStartAge <= settings.lifeExpectancy
+    && settings.pensionContributionRatio >= 0
+    && settings.pensionContributionRatio <= 100
+    && settings.monthlyContributionAfterRetirement >= 0
+    && ["pension_first", "taxable_first", "proportional"].includes(settings.withdrawalPriority)
     && settings.expectedReturnRate > -50
     && settings.expectedReturnRate <= 50
     && settings.inflationRate > -10
@@ -64,7 +89,7 @@ export async function GET() {
 
     const { data, error } = await supabaseServer
       .from("retirement_settings")
-      .select("current_age, retirement_age, life_expectancy, monthly_contribution, monthly_living_cost, public_pension_monthly, expected_return_rate, inflation_rate, updated_at")
+      .select("current_age, retirement_age, life_expectancy, monthly_contribution, monthly_living_cost, public_pension_monthly, public_pension_start_age, private_pension_start_age, pension_contribution_ratio, monthly_contribution_after_retirement, withdrawal_priority, expected_return_rate, inflation_rate, updated_at")
       .eq("user_id", user.id)
       .maybeSingle();
     if (error) throw error;
@@ -92,6 +117,11 @@ export async function PUT(request: NextRequest) {
       monthlyContribution: Number(body.monthlyContribution),
       monthlyLivingCost: Number(body.monthlyLivingCost),
       publicPensionMonthly: Number(body.publicPensionMonthly),
+      publicPensionStartAge: Number(body.publicPensionStartAge),
+      privatePensionStartAge: Number(body.privatePensionStartAge),
+      pensionContributionRatio: Number(body.pensionContributionRatio),
+      monthlyContributionAfterRetirement: Number(body.monthlyContributionAfterRetirement),
+      withdrawalPriority: body.withdrawalPriority ?? "pension_first",
       expectedReturnRate: Number(body.expectedReturnRate),
       inflationRate: Number(body.inflationRate),
     };
@@ -110,11 +140,16 @@ export async function PUT(request: NextRequest) {
         monthly_contribution: settings.monthlyContribution,
         monthly_living_cost: settings.monthlyLivingCost,
         public_pension_monthly: settings.publicPensionMonthly,
+        public_pension_start_age: settings.publicPensionStartAge,
+        private_pension_start_age: settings.privatePensionStartAge,
+        pension_contribution_ratio: settings.pensionContributionRatio,
+        monthly_contribution_after_retirement: settings.monthlyContributionAfterRetirement,
+        withdrawal_priority: settings.withdrawalPriority,
         expected_return_rate: settings.expectedReturnRate,
         inflation_rate: settings.inflationRate,
         updated_at: updatedAt,
       }, { onConflict: "user_id" })
-      .select("current_age, retirement_age, life_expectancy, monthly_contribution, monthly_living_cost, public_pension_monthly, expected_return_rate, inflation_rate, updated_at")
+      .select("current_age, retirement_age, life_expectancy, monthly_contribution, monthly_living_cost, public_pension_monthly, public_pension_start_age, private_pension_start_age, pension_contribution_ratio, monthly_contribution_after_retirement, withdrawal_priority, expected_return_rate, inflation_rate, updated_at")
       .single();
     if (error) throw error;
 

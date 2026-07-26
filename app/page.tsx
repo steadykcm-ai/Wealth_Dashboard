@@ -1172,10 +1172,17 @@ interface RetirementScenarioResult {
   targetAssets: number;
   monthlyIncome: number;
   fundingRate: number;
+  depletionAge: number | null;
+  bridgeGap: number;
+  projectedStockAssets: number;
+  projectedPensionAssets: number;
 }
 
+type NumericRetirementSettingKey = Exclude<keyof RetirementSettings, "withdrawalPriority" | "updatedAt">;
+
 function calculateRetirementScenario(
-  currentAssets: number,
+  stockAssets: number,
+  pensionAssets: number,
   settings: RetirementSettings,
   returnAdjustment: number,
   label: string
@@ -1186,16 +1193,58 @@ function calculateRetirementScenario(
   const savingMonths = Math.max(0, (settings.retirementAge - settings.currentAge) * 12);
   const retirementMonths = Math.max(1, (settings.lifeExpectancy - settings.retirementAge) * 12);
   const savingGrowth = Math.pow(1 + monthlyRate, savingMonths);
-  const contributionGrowth = Math.abs(monthlyRate) < 0.000001
-    ? settings.monthlyContribution * savingMonths
-    : settings.monthlyContribution * ((savingGrowth - 1) / monthlyRate);
-  const projectedAssets = Math.max(0, currentAssets * savingGrowth + contributionGrowth);
+  const contributionFactor = Math.abs(monthlyRate) < 0.000001
+    ? savingMonths
+    : (savingGrowth - 1) / monthlyRate;
+  const pensionContribution = settings.monthlyContribution * (settings.pensionContributionRatio / 100);
+  const stockContribution = settings.monthlyContribution - pensionContribution;
+  const projectedStockAssets = Math.max(0, stockAssets * savingGrowth + stockContribution * contributionFactor);
+  const projectedPensionAssets = Math.max(0, pensionAssets * savingGrowth + pensionContribution * contributionFactor);
+  const projectedAssets = projectedStockAssets + projectedPensionAssets;
   const monthlyGap = Math.max(0, settings.monthlyLivingCost - settings.publicPensionMonthly);
   const annuityFactor = Math.abs(monthlyRate) < 0.000001
     ? retirementMonths
     : (1 - Math.pow(1 + monthlyRate, -retirementMonths)) / monthlyRate;
   const targetAssets = Math.max(0, monthlyGap * annuityFactor);
   const sustainableWithdrawal = annuityFactor > 0 ? projectedAssets / annuityFactor : 0;
+  let stockBalance = projectedStockAssets;
+  let pensionBalance = projectedPensionAssets;
+  let bridgeGap = 0;
+  let depletionAge: number | null = null;
+  for (let month = 0; month < retirementMonths; month += 1) {
+    const age = settings.retirementAge + month / 12;
+    stockBalance *= 1 + monthlyRate;
+    pensionBalance *= 1 + monthlyRate;
+    stockBalance += settings.monthlyContributionAfterRetirement;
+    const publicPension = age >= settings.publicPensionStartAge ? settings.publicPensionMonthly : 0;
+    let requiredWithdrawal = Math.max(0, settings.monthlyLivingCost - publicPension);
+    if (age < settings.publicPensionStartAge) bridgeGap += requiredWithdrawal;
+
+    const takeFromStock = (amount: number) => {
+      const withdrawn = Math.min(stockBalance, amount);
+      stockBalance -= withdrawn;
+      return amount - withdrawn;
+    };
+    const takeFromPension = (amount: number) => {
+      if (age < settings.privatePensionStartAge) return amount;
+      const withdrawn = Math.min(pensionBalance, amount);
+      pensionBalance -= withdrawn;
+      return amount - withdrawn;
+    };
+    if (settings.withdrawalPriority === "pension_first") {
+      requiredWithdrawal = takeFromStock(takeFromPension(requiredWithdrawal));
+    } else if (settings.withdrawalPriority === "taxable_first") {
+      requiredWithdrawal = takeFromPension(takeFromStock(requiredWithdrawal));
+    } else {
+      const totalBalance = stockBalance + (age >= settings.privatePensionStartAge ? pensionBalance : 0);
+      const stockShare = totalBalance > 0 ? stockBalance / totalBalance : 1;
+      const stockNeed = requiredWithdrawal * stockShare;
+      const pensionNeed = requiredWithdrawal - stockNeed;
+      requiredWithdrawal = takeFromStock(stockNeed) + takeFromPension(pensionNeed);
+      requiredWithdrawal = takeFromStock(takeFromPension(requiredWithdrawal));
+    }
+    if (requiredWithdrawal > 1 && depletionAge === null) depletionAge = age;
+  }
 
   return {
     label,
@@ -1204,6 +1253,10 @@ function calculateRetirementScenario(
     targetAssets,
     monthlyIncome: sustainableWithdrawal + settings.publicPensionMonthly,
     fundingRate: targetAssets > 0 ? (projectedAssets / targetAssets) * 100 : 100,
+    depletionAge,
+    bridgeGap,
+    projectedStockAssets,
+    projectedPensionAssets,
   };
 }
 
@@ -1244,14 +1297,19 @@ function RetirementPlanner({
   }, []);
 
   const scenarios = useMemo(() => settings ? [
-    calculateRetirementScenario(currentAssets, settings, -2, "보수적"),
-    calculateRetirementScenario(currentAssets, settings, 0, "기준"),
-    calculateRetirementScenario(currentAssets, settings, 2, "낙관적"),
-  ] : [], [currentAssets, settings]);
+    calculateRetirementScenario(stockAssets, pensionAssets, settings, -2, "보수적"),
+    calculateRetirementScenario(stockAssets, pensionAssets, settings, 0, "기준"),
+    calculateRetirementScenario(stockAssets, pensionAssets, settings, 2, "낙관적"),
+  ] : [], [pensionAssets, settings, stockAssets]);
   const baseScenario = scenarios[1];
 
-  function updateSetting(key: keyof RetirementSettings, value: number) {
+  function updateSetting(key: NumericRetirementSettingKey, value: number) {
     setSettings((previous) => previous ? { ...previous, [key]: value, updatedAt: undefined } : previous);
+    setError(null);
+  }
+
+  function updateWithdrawalPriority(value: RetirementSettings["withdrawalPriority"]) {
+    setSettings((previous) => previous ? { ...previous, withdrawalPriority: value, updatedAt: undefined } : previous);
     setError(null);
   }
 
@@ -1279,7 +1337,7 @@ function RetirementPlanner({
   }
 
   const inputFields: Array<{
-    key: keyof RetirementSettings;
+    key: NumericRetirementSettingKey;
     label: string;
     suffix: string;
     step: number;
@@ -1290,6 +1348,10 @@ function RetirementPlanner({
     { key: "monthlyContribution", label: "월 추가 투자", suffix: "원", step: 100000 },
     { key: "monthlyLivingCost", label: "은퇴 월 생활비", suffix: "원", step: 100000 },
     { key: "publicPensionMonthly", label: "월 공적연금", suffix: "원", step: 100000 },
+    { key: "publicPensionStartAge", label: "공적연금 시작", suffix: "세", step: 1 },
+    { key: "privatePensionStartAge", label: "개인연금 인출", suffix: "세", step: 1 },
+    { key: "pensionContributionRatio", label: "연금 투자 비중", suffix: "%", step: 1 },
+    { key: "monthlyContributionAfterRetirement", label: "은퇴 후 월 투자", suffix: "원", step: 100000 },
     { key: "expectedReturnRate", label: "기대수익률", suffix: "%", step: 0.1 },
     { key: "inflationRate", label: "물가상승률", suffix: "%", step: 0.1 },
   ];
@@ -1347,6 +1409,11 @@ function RetirementPlanner({
               <p className="mt-3 text-[11px] text-gray-400">
                 실질수익률 기준 · 기준 {baseScenario.annualReturn.toFixed(1)}% · 필요자산 {formatKRW(baseScenario.targetAssets)}
               </p>
+              <div className="mt-4 grid grid-cols-3 divide-x divide-[#e0e0e0] border-y border-[#e0e0e0] py-3 dark:divide-[#2a3a4a] dark:border-[#2a3a4a]">
+                <div className="px-2"><span className="block text-[10px] text-gray-400">연금 시작 전 필요액</span><strong className="mt-1 block text-xs text-gray-900 dark:text-white">{formatKRW(baseScenario.bridgeGap)}</strong></div>
+                <div className="px-2 text-center"><span className="block text-[10px] text-gray-400">자산 소진 예상</span><strong className="mt-1 block text-xs text-gray-900 dark:text-white">{baseScenario.depletionAge ? `${baseScenario.depletionAge.toFixed(1)}세` : `${settings.lifeExpectancy}세 이후`}</strong></div>
+                <div className="px-2 text-right"><span className="block text-[10px] text-gray-400">은퇴 시 연금자산</span><strong className="mt-1 block text-xs text-gray-900 dark:text-white">{formatKRW(baseScenario.projectedPensionAssets)}</strong></div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 px-4 py-4 md:grid-cols-4">
@@ -1366,6 +1433,20 @@ function RetirementPlanner({
                   </span>
                 </label>
               ))}
+            </div>
+            <div className="border-t border-[#e0e0e0] px-4 py-4 dark:border-[#2a3a4a]">
+              <span className="mb-2 block text-[11px] font-medium text-gray-500 dark:text-gray-400">인출 순서</span>
+              <div className="grid grid-cols-3 overflow-hidden rounded-md border border-[#d6d9e0] dark:border-[#3a4658]">
+                {([
+                  { value: "pension_first" as const, label: "연금 먼저" },
+                  { value: "taxable_first" as const, label: "주식 먼저" },
+                  { value: "proportional" as const, label: "비례 인출" },
+                ]).map((option) => (
+                  <button key={option.value} type="button" onClick={() => updateWithdrawalPriority(option.value)} className={`border-r border-[#d6d9e0] px-2 py-2 text-xs font-semibold last:border-r-0 dark:border-[#3a4658] ${settings.withdrawalPriority === option.value ? "bg-[#3d47cf] text-white" : "bg-white text-gray-600 dark:bg-[#0f1923] dark:text-gray-300"}`}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
             {error && <p role="alert" className="border-t border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
             <div className="flex items-center justify-between border-t border-[#e0e0e0] px-4 py-3 dark:border-[#2a3a4a]">

@@ -196,6 +196,11 @@ export interface RetirementSettings {
   monthlyContribution: number;
   monthlyLivingCost: number;
   publicPensionMonthly: number;
+  publicPensionStartAge: number;
+  privatePensionStartAge: number;
+  pensionContributionRatio: number;
+  monthlyContributionAfterRetirement: number;
+  withdrawalPriority: "pension_first" | "taxable_first" | "proportional";
   expectedReturnRate: number;
   inflationRate: number;
   updatedAt?: string;
