@@ -1277,6 +1277,79 @@ function PerformanceAnalyticsPanel({ logs, events, benchmarks }: { logs: DailyLo
   );
 }
 
+function csvCell(value: string | number): string {
+  const raw = String(value);
+  const protectedValue = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return `"${protectedValue.replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
+  const contents = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob(["\uFEFF", contents], { type: "text/csv;charset=utf-8" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function ExportPanel({ groups, logs, events }: { groups: AssetGroup[]; logs: DailyLogItem[]; events: PortfolioEvent[] }) {
+  const dateKey = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+
+  function exportAssets() {
+    const rows: Array<Array<string | number>> = [["구분", "계좌", "종목코드", "종목명", "수량", "평균매입가", "현재가", "투자원금", "평가금액", "평가손익", "수익률"]];
+    groups.forEach((group) => {
+      const accounts = group.accounts.length > 0 ? group.accounts : [{ name: "-", items: group.items, cash: group.cash }];
+      accounts.forEach((account) => {
+        account.items.forEach((item) => rows.push([group.category, account.name, item.code ?? "", item.name, item.quantity, item.avgPrice, item.currentPrice, item.investAmount, item.currentValue, item.profitLoss, item.returnRate]));
+        if (account.cash !== 0) rows.push([group.category, account.name, "", "현금", 1, account.cash, account.cash, account.cash, account.cash, 0, 0]);
+      });
+    });
+    downloadCsv(`자산현황_${dateKey}.csv`, rows);
+  }
+
+  function exportPerformance() {
+    const indexByDate = new Map(buildPerformancePoints(logs, events).map((point) => [point.date, point.index]));
+    const rows: Array<Array<string | number>> = [["날짜", "총자산", "주식", "연금", "투자성과지수"]];
+    [...logs].sort((left, right) => left.date.localeCompare(right.date)).forEach((log) => rows.push([
+      log.date, log.total.total, log.stocks.total, log.pension.total, Number((indexByDate.get(log.date) ?? 100).toFixed(6)),
+    ]));
+    downloadCsv(`자산성과_${dateKey}.csv`, rows);
+  }
+
+  return (
+    <section className="mb-6 px-4 md:px-0" aria-label="내보내기">
+      <div className="rounded-xl border border-[#e0e0e0] bg-white p-4 dark:border-[#2a3a4a] dark:bg-[#1a2332]">
+        <div className="mb-3"><h2 className="text-sm font-semibold text-[#3d47cf]">내보내기</h2><p className="mt-0.5 text-[11px] text-gray-400">원본 데이터 보관과 정기 보고용</p></div>
+        <div className="grid grid-cols-3 gap-2">
+          <button type="button" onClick={exportAssets} className="rounded-md border border-[#d6d9e0] px-2 py-2 text-xs font-semibold text-gray-600 dark:border-[#3a4658] dark:text-gray-300">자산 CSV</button>
+          <button type="button" onClick={exportPerformance} className="rounded-md border border-[#d6d9e0] px-2 py-2 text-xs font-semibold text-gray-600 dark:border-[#3a4658] dark:text-gray-300">성과 CSV</button>
+          <button type="button" onClick={() => window.print()} className="rounded-md bg-[#3d47cf] px-2 py-2 text-xs font-semibold text-white">PDF 보고서</button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PrintablePortfolioReport({ groups, logs, events }: { groups: AssetGroup[]; logs: DailyLogItem[]; events: PortfolioEvent[] }) {
+  const totalValue = groups.reduce((sum, group) => sum + group.totalValue, 0);
+  const totalInvest = groups.reduce((sum, group) => sum + group.totalInvest, 0);
+  const totalProfit = groups.reduce((sum, group) => sum + group.totalProfitLoss, 0);
+  const performance = buildPerformancePoints(logs, events);
+  const cumulativeReturn = performance.length > 1 ? ((performance.at(-1)!.index / performance[0].index) - 1) * 100 : 0;
+  return (
+    <article className="print-report">
+      <header><h1>자산 현황 보고서</h1><p>{new Date().toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })} 기준</p></header>
+      <section className="print-summary"><div><span>총자산</span><strong>{formatKRW(totalValue)}</strong></div><div><span>평가손익</span><strong>{formatKRW(totalProfit)}</strong></div><div><span>수익률</span><strong>{formatRate(totalInvest > 0 ? (totalProfit / totalInvest) * 100 : 0)}</strong></div><div><span>기간 성과</span><strong>{formatRate(cumulativeReturn)}</strong></div></section>
+      <h2>자산 구성</h2>
+      <table><thead><tr><th>구분</th><th>투자원금</th><th>평가금액</th><th>평가손익</th><th>수익률</th></tr></thead><tbody>{groups.map((group) => <tr key={group.category}><td>{group.category}</td><td>{formatKRW(group.totalInvest)}</td><td>{formatKRW(group.totalValue)}</td><td>{formatKRW(group.totalProfitLoss)}</td><td>{formatRate(group.returnRate)}</td></tr>)}</tbody></table>
+      <h2>계좌별 현황</h2>
+      <table><thead><tr><th>구분</th><th>계좌</th><th>평가금액</th><th>평가손익</th><th>수익률</th></tr></thead><tbody>{groups.flatMap((group) => group.accounts.map((account) => <tr key={`${group.category}-${account.name}`}><td>{group.category}</td><td>{account.name}</td><td>{formatKRW(account.totalValue)}</td><td>{formatKRW(account.totalProfitLoss)}</td><td>{formatRate(account.returnRate)}</td></tr>))}</tbody></table>
+      <footer>입출금 및 평가조정은 기간 성과 계산에서 제외됩니다.</footer>
+    </article>
+  );
+}
+
 interface RetirementScenarioResult {
   label: string;
   annualReturn: number;
@@ -4585,7 +4658,7 @@ export default function DashboardPage() {
   const retirementPensionAssets = adjustedGroups.find((group) => group.category === "개인연금")?.totalValue ?? 0;
 
   return (
-    <div className="flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
+    <div className="dashboard-app flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refreshDashboard} refreshing={refreshing} />
 
@@ -4692,6 +4765,7 @@ export default function DashboardPage() {
               await reload();
               await fetchPerformanceData();
             }} />
+            <ExportPanel groups={adjustedGroups} logs={profitLogs} events={portfolioEvents} />
           </>
         )}
 
@@ -5076,6 +5150,7 @@ export default function DashboardPage() {
           />
         );
       })()}
+      <PrintablePortfolioReport groups={adjustedGroups} logs={profitLogs} events={portfolioEvents} />
     </div>
   );
 }
