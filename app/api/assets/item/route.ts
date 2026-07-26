@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
+type EditableAssetField = "quantity" | "avgPrice" | "manualInvestAmount" | "manualValue";
+
+const EDITABLE_FIELDS: EditableAssetField[] = [
+  "quantity",
+  "avgPrice",
+  "manualInvestAmount",
+  "manualValue",
+];
+
 export async function POST(req: NextRequest) {
   try {
     const supabaseServer = await createSupabaseServer();
@@ -88,32 +97,48 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json() as {
-      id: number;
-      field: "quantity" | "avgPrice" | "manualValue";
-      value: number;
+      id?: number;
+      field?: EditableAssetField;
+      value?: number;
+      updates?: Partial<Record<EditableAssetField, number>>;
     };
 
-    const { id, field, value } = body;
+    const id = Number(body.id);
+    const updates = body.updates ?? (
+      body.field && body.value !== undefined
+        ? { [body.field]: body.value }
+        : {}
+    );
+    const updateEntries = Object.entries(updates);
 
-    if (!id || !field || value === undefined) {
+    if (!Number.isInteger(id) || id <= 0 || updateEntries.length === 0) {
       return NextResponse.json({ error: "필수 파라미터 누락" }, { status: 400 });
     }
 
-    if (!Number.isFinite(value) || value <= 0) {
-      return NextResponse.json({ error: "유효하지 않은 값" }, { status: 400 });
-    }
-
     const updateData: Record<string, number | string> = {};
-    if (field === "quantity") {
-      updateData.quantity = value;
-    } else if (field === "avgPrice") {
-      updateData.avg_price = value;
-    } else if (field === "manualValue") {
-      updateData.manual_value = value;
-      updateData.valuation_updated_at = new Date().toISOString();
-    } else {
-      return NextResponse.json({ error: "지원하지 않는 필드" }, { status: 400 });
+    let updatesManualValuation = false;
+    for (const [rawField, rawValue] of updateEntries) {
+      if (!EDITABLE_FIELDS.includes(rawField as EditableAssetField)) {
+        return NextResponse.json({ error: "지원하지 않는 필드" }, { status: 400 });
+      }
+      const field = rawField as EditableAssetField;
+      const value = Number(rawValue);
+      if (!Number.isFinite(value) || value <= 0) {
+        return NextResponse.json({ error: "유효하지 않은 값" }, { status: 400 });
+      }
+
+      if (field === "quantity") updateData.quantity = value;
+      if (field === "avgPrice") updateData.avg_price = value;
+      if (field === "manualInvestAmount") {
+        updateData.manual_invest_amount = value;
+        updatesManualValuation = true;
+      }
+      if (field === "manualValue") {
+        updateData.manual_value = value;
+        updatesManualValuation = true;
+      }
     }
+    if (updatesManualValuation) updateData.valuation_updated_at = new Date().toISOString();
 
     const { error } = await supabaseServer
       .from("assets")

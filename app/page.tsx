@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -70,7 +70,9 @@ interface TodayQuote {
   changeRate: number;
 }
 
-type EditableAssetField = "quantity" | "avgPrice" | "manualValue";
+type EditableAssetField = "quantity" | "avgPrice" | "manualInvestAmount" | "manualValue";
+type AssetUpdates = Partial<Record<EditableAssetField, number>>;
+type AccountSortMode = "value" | "return" | "name" | "freshness";
 
 // 종목 데이터: [종목명, GOOGLEFINANCE 티커] 형식
 type StockEntry = [string, string];
@@ -137,6 +139,32 @@ function latestPriceUpdatedAt(items: AssetItem[]): string | undefined {
     .filter((updatedAt): updatedAt is string => Boolean(updatedAt))
     .sort()
     .at(-1);
+}
+
+function assetKey(item: AssetItem): string {
+  return item.id ? `${item.id}` : `${item.sheetTab ?? ""}-${item.rowIndex ?? ""}`;
+}
+
+function itemDataUpdatedAt(item: AssetItem): string | undefined {
+  return item.valuationMode === "manual" ? item.valuationUpdatedAt : item.priceUpdatedAt;
+}
+
+function accountDataUpdatedAt(account: AccountGroup): string | undefined {
+  const timestamps = account.items.map(itemDataUpdatedAt);
+  if (timestamps.length === 0 || timestamps.some((timestamp) => !timestamp)) return undefined;
+  return (timestamps as string[]).sort().at(0);
+}
+
+function isAccountStale(account: AccountGroup, nowMs = Date.now()): boolean {
+  if (account.items.length === 0) return true;
+  return account.items.some((item) => {
+    const timestamp = itemDataUpdatedAt(item);
+    if (!timestamp) return true;
+    const updatedMs = new Date(timestamp).getTime();
+    if (!Number.isFinite(updatedMs)) return true;
+    const staleDays = item.valuationMode === "manual" ? 45 : 5;
+    return nowMs - updatedMs > staleDays * 24 * 60 * 60 * 1000;
+  });
 }
 
 function accountValueWithCashOverride(
@@ -1637,19 +1665,16 @@ function AssetRow({
 function AssetCard({
   item,
   editable,
-  onSave,
-  onDelete,
+  onEdit,
   todayQuote,
 }: {
   item: AssetItem;
   editable?: boolean;
-  onSave?: (field: EditableAssetField, value: number) => Promise<void>;
-  onDelete?: () => Promise<void>;
+  onEdit?: () => void;
   todayQuote?: TodayQuote;
 }) {
-  const canEdit = editable && !!item.id && !!onSave;
+  const canEdit = editable && !!item.id && !!onEdit;
   const isManual = item.valuationMode === "manual";
-  const canEditMarket = canEdit && !isManual;
   const valuationDate = formatValuationUpdatedAt(item.valuationUpdatedAt);
   return (
     <div className="px-4 py-3 border-b border-[#f0f0f0] dark:border-[#2a3a4a]">
@@ -1662,29 +1687,21 @@ function AssetCard({
             </span>
           )}
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
-            {canEditMarket ? (
-              <EditableCell
-                value={item.quantity}
-                display={item.quantity.toLocaleString("ko-KR")}
-                onSave={(v) => onSave!("quantity", v)}
-                onDelete={onDelete}
-              />
-            ) : (
-              <span>{item.quantity.toLocaleString("ko-KR")}</span>
-            )}
+            <span>{item.quantity.toLocaleString("ko-KR")}</span>
             <span>{isManual ? "수량 · 매입" : "주 · 매입"}</span>
-            {canEditMarket ? (
-              <EditableCell
-                value={item.avgPrice}
-                display={formatKRW(item.avgPrice)}
-                onSave={(v) => onSave!("avgPrice", v)}
-              />
-            ) : (
-              <span>{formatKRW(item.avgPrice)}</span>
-            )}
+            <span>{formatKRW(item.avgPrice)}</span>
           </div>
         </div>
         <div className="shrink-0 text-right">
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="mb-1 text-xs font-semibold text-[#3d47cf]"
+            >
+              수정
+            </button>
+          )}
           <div className="text-base font-bold text-gray-900 dark:text-white leading-tight">
             {formatKRW(item.currentPrice)}
           </div>
@@ -1696,15 +1713,7 @@ function AssetCard({
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         <div className="flex items-center justify-between gap-2">
           <span className="text-gray-400">평가금액</span>
-          {canEdit && isManual ? (
-            <EditableCell
-              value={item.currentValue}
-              display={formatKRW(item.currentValue)}
-              onSave={(v) => onSave!("manualValue", v)}
-            />
-          ) : (
-            <span className="font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</span>
-          )}
+          <span className="font-semibold text-gray-900 dark:text-white">{formatKRW(item.currentValue)}</span>
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-gray-400">평가손익</span>
@@ -1722,6 +1731,132 @@ function AssetCard({
             {item.quantity.toLocaleString("ko-KR")}{isManual ? "" : "주"}
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileAssetEditModal({
+  item,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  item: AssetItem | null;
+  onClose: () => void;
+  onSave: (item: AssetItem, updates: AssetUpdates) => Promise<void>;
+  onDelete: (item: AssetItem) => Promise<void>;
+}) {
+  const [quantity, setQuantity] = useState("");
+  const [avgPrice, setAvgPrice] = useState("");
+  const [manualInvestAmount, setManualInvestAmount] = useState("");
+  const [manualValue, setManualValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!item) return;
+    setQuantity(`${item.quantity}`);
+    setAvgPrice(`${item.avgPrice}`);
+    setManualInvestAmount(`${item.manualInvestAmount ?? item.investAmount}`);
+    setManualValue(`${item.manualValue ?? item.currentValue}`);
+    setModalError(null);
+  }, [item]);
+
+  if (!item) return null;
+  const currentItem = item;
+  const isManual = item.valuationMode === "manual";
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const updates: AssetUpdates = isManual
+      ? {
+          manualInvestAmount: Number(manualInvestAmount),
+          manualValue: Number(manualValue),
+        }
+      : {
+          quantity: Number(quantity),
+          avgPrice: Number(avgPrice),
+        };
+    if (Object.values(updates).some((value) => !Number.isFinite(value) || (value ?? 0) <= 0)) {
+      setModalError("0보다 큰 숫자를 입력해 주세요.");
+      return;
+    }
+
+    setSaving(true);
+    setModalError(null);
+    try {
+      await onSave(currentItem, updates);
+      onClose();
+    } catch (error: unknown) {
+      setModalError(error instanceof Error ? error.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm("이 종목을 목록에서 삭제할까요?")) return;
+    setSaving(true);
+    setModalError(null);
+    try {
+      await onDelete(currentItem);
+      onClose();
+    } catch (error: unknown) {
+      setModalError(error instanceof Error ? error.message : "삭제에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/45 md:hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-asset-edit-title"
+        className="w-full rounded-t-xl border-t border-[#e0e0e0] bg-white px-4 pb-6 pt-4 shadow-xl dark:border-[#2a3a4a] dark:bg-[#1a2332]"
+      >
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 id="mobile-asset-edit-title" className="min-w-0 truncate text-base font-bold text-gray-900 dark:text-white">
+            {item.name}
+          </h2>
+          <button type="button" onClick={onClose} aria-label="닫기" className="h-8 w-8 text-xl text-gray-500">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            {isManual ? (
+              <>
+                <label className="text-xs font-medium text-gray-500">
+                  투자원금
+                  <input type="number" inputMode="decimal" value={manualInvestAmount} onChange={(event) => setManualInvestAmount(event.target.value)} className="mt-1 w-full rounded-md border border-[#d6d9e0] bg-white px-3 py-2 text-right text-sm text-gray-900 dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-white" />
+                </label>
+                <label className="text-xs font-medium text-gray-500">
+                  평가금액
+                  <input type="number" inputMode="decimal" value={manualValue} onChange={(event) => setManualValue(event.target.value)} className="mt-1 w-full rounded-md border border-[#d6d9e0] bg-white px-3 py-2 text-right text-sm text-gray-900 dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-white" />
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="text-xs font-medium text-gray-500">
+                  수량
+                  <input type="number" inputMode="decimal" step="0.0001" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="mt-1 w-full rounded-md border border-[#d6d9e0] bg-white px-3 py-2 text-right text-sm text-gray-900 dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-white" />
+                </label>
+                <label className="text-xs font-medium text-gray-500">
+                  평균 매입가
+                  <input type="number" inputMode="decimal" step="0.01" value={avgPrice} onChange={(event) => setAvgPrice(event.target.value)} className="mt-1 w-full rounded-md border border-[#d6d9e0] bg-white px-3 py-2 text-right text-sm text-gray-900 dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-white" />
+                </label>
+              </>
+            )}
+          </div>
+          {modalError && <p role="alert" className="text-xs text-red-600">{modalError}</p>}
+          <div className="grid grid-cols-[auto_1fr] gap-2">
+            <button type="button" onClick={handleDelete} disabled={saving} className="rounded-md border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 disabled:opacity-50">삭제</button>
+            <button type="submit" disabled={saving} className="rounded-md bg-[#3d47cf] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {saving ? "저장 중..." : "저장"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -2177,6 +2312,7 @@ function AddItemModal({
 function AccountsOverview({
   accounts,
   totalCash,
+  categoryTotalValue,
   editable,
   cashOverrides,
   onCashSave,
@@ -2184,6 +2320,7 @@ function AccountsOverview({
 }: {
   accounts: AccountGroup[];
   totalCash: number;
+  categoryTotalValue: number;
   editable?: boolean;
   cashOverrides?: Record<string, number>;
   onCashSave?: (account: AccountGroup, value: number) => Promise<void>;
@@ -2226,12 +2363,18 @@ function AccountsOverview({
             const displayCash = cashOverrides?.[acct.name] ?? acct.cash;
             const displayTotalValue = accountValueWithCashOverride(acct, cashOverrides);
             const canEditCash = editable && !!onCashSave;
+            const updatedAt = accountDataUpdatedAt(acct);
+            const stale = isAccountStale(acct);
+            const allocation = categoryTotalValue > 0 ? (displayTotalValue / categoryTotalValue) * 100 : 0;
             return (
               <div
                 key={acct.name}
                 className="rounded-lg border border-[#e8e8e8] dark:border-[#2a3a4a] p-3 bg-[#f8f9fc] dark:bg-[#0f1923]"
               >
-                <p className="text-xs font-bold text-[#3d47cf] truncate mb-2">{acct.name}</p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="min-w-0 truncate text-xs font-bold text-[#3d47cf]">{acct.name}</p>
+                  <span className="shrink-0 text-[11px] font-medium text-gray-400">{allocation.toFixed(1)}%</span>
+                </div>
                 <p className="text-sm font-bold text-gray-900 dark:text-white">{formatKRW(displayTotalValue)}</p>
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-xs text-gray-400">원금 {formatKRW(acct.totalInvest)}</span>
@@ -2253,11 +2396,76 @@ function AccountsOverview({
                     )}
                   </div>
                 )}
+                <div className="mt-2 border-t border-[#e8e8e8] pt-2 text-[11px] dark:border-[#2a3a4a]">
+                  <span className={stale ? "font-medium text-amber-600" : "text-gray-400"}>
+                    {updatedAt
+                      ? `${stale ? "오래됨 · " : ""}갱신 ${formatPriceUpdatedAt(updatedAt)}`
+                      : "갱신일 미확인"}
+                  </span>
+                </div>
               </div>
             );
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AccountManagementToolbar({
+  query,
+  sortMode,
+  hideInactive,
+  visibleCount,
+  totalCount,
+  allCollapsed,
+  onQueryChange,
+  onSortChange,
+  onHideInactiveChange,
+  onToggleAll,
+}: {
+  query: string;
+  sortMode: AccountSortMode;
+  hideInactive: boolean;
+  visibleCount: number;
+  totalCount: number;
+  allCollapsed: boolean;
+  onQueryChange: (value: string) => void;
+  onSortChange: (value: AccountSortMode) => void;
+  onHideInactiveChange: (value: boolean) => void;
+  onToggleAll: () => void;
+}) {
+  return (
+    <div className="mx-4 mb-3 border-y border-[#e0e0e0] bg-white px-3 py-3 dark:border-[#2a3a4a] dark:bg-[#1a2332] md:mx-0">
+      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-2 md:grid-cols-[minmax(220px,1fr)_150px_auto_auto] md:items-center">
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="계좌 검색"
+          aria-label="계좌 검색"
+          className="min-w-0 rounded-md border border-[#d6d9e0] bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#3d47cf] dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-white"
+        />
+        <select
+          value={sortMode}
+          onChange={(event) => onSortChange(event.target.value as AccountSortMode)}
+          aria-label="계좌 정렬"
+          className="rounded-md border border-[#d6d9e0] bg-white px-2 py-2 text-xs text-gray-700 outline-none dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-gray-200"
+        >
+          <option value="value">자산금액순</option>
+          <option value="return">수익률순</option>
+          <option value="name">이름순</option>
+          <option value="freshness">최근 갱신순</option>
+        </select>
+        <label className="col-span-2 flex items-center gap-2 text-xs text-gray-500 md:col-span-1 dark:text-gray-400">
+          <input type="checkbox" checked={hideInactive} onChange={(event) => onHideInactiveChange(event.target.checked)} />
+          오래된·빈 계좌 숨김
+        </label>
+        <button type="button" onClick={onToggleAll} disabled={visibleCount === 0} className="col-span-2 rounded-md border border-[#d6d9e0] px-3 py-2 text-xs font-semibold text-gray-600 disabled:opacity-40 md:col-span-1 dark:border-[#3a4658] dark:text-gray-300">
+          {allCollapsed ? "모두 펼치기" : "모두 접기"}
+        </button>
+      </div>
+      <p className="mt-2 text-[11px] text-gray-400">{visibleCount}/{totalCount}개 계좌</p>
     </div>
   );
 }
@@ -2413,6 +2621,11 @@ export default function DashboardPage() {
   const [syncRunsLoading, setSyncRunsLoading] = useState(true);
   const [syncRunsError, setSyncRunsError] = useState<string | null>(null);
   const [retryingJob, setRetryingJob] = useState<SyncJob | null>(null);
+  const [accountQuery, setAccountQuery] = useState("");
+  const [accountSort, setAccountSort] = useState<AccountSortMode>("value");
+  const [hideInactiveAccounts, setHideInactiveAccounts] = useState(false);
+  const [collapsedAccounts, setCollapsedAccounts] = useState<Set<string>>(new Set());
+  const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
 
   const fetchSyncRuns = useCallback(async () => {
     setSyncRunsLoading(true);
@@ -2464,20 +2677,25 @@ export default function DashboardPage() {
     }
   }, []);
 
-  async function saveItem(item: AssetItem, field: EditableAssetField, value: number) {
+  async function saveItemUpdates(item: AssetItem, updates: AssetUpdates) {
     const res = await fetch("/api/assets/item", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: item.id, field, value }),
+      body: JSON.stringify({ id: item.id, updates }),
     });
     if (!res.ok) {
       const body = await res.json() as { error?: string };
       throw new Error(body.error ?? "저장 실패");
     }
-    const key = `${item.id ?? ""}`;
-    setItemOverrides((prev) => ({ ...prev, [key]: { ...(prev[key] ?? {}), [field]: value } }));
+    const key = assetKey(item);
+    setItemOverrides((prev) => ({ ...prev, [key]: { ...(prev[key] ?? {}), ...updates } }));
     // 대시보드 데이터 갱신
     await reload();
+  }
+
+  async function saveItem(item: AssetItem, field: EditableAssetField, value: number) {
+    const updates: AssetUpdates = { [field]: value };
+    await saveItemUpdates(item, updates);
   }
 
   async function saveCash(account: AccountGroup, value: number) {
@@ -2513,6 +2731,12 @@ export default function DashboardPage() {
     fetchPerformanceData();
     fetchSyncRuns();
   }, [fetchPerformanceData, fetchSyncRuns]);
+
+  useEffect(() => {
+    setAccountQuery("");
+    setCollapsedAccounts(new Set());
+    setEditingAsset(null);
+  }, [activeTab]);
 
   async function retrySyncJob(job: SyncJob) {
     if (retryingJob) return;
@@ -2692,18 +2916,18 @@ export default function DashboardPage() {
       (g) => g.category === (activeTab as AssetCategory)
     );
     const rawItems = (group?.items ?? [])
-      .filter((item) => !deletedKeys.has(`${item.sheetTab ?? ""}-${item.rowIndex ?? ""}`))
+      .filter((item) => !deletedKeys.has(assetKey(item)))
       .sort((a, b) => b.returnRate - a.returnRate);
     // 로컬 편집 오버라이드 적용
     return rawItems.map((item) => {
-      const key = `${item.sheetTab ?? ""}-${item.rowIndex ?? ""}`;
+      const key = assetKey(item);
       const ov = itemOverrides[key];
       if (!ov) return item;
       const quantity = ov.quantity ?? item.quantity;
       const avgPrice = ov.avgPrice ?? item.avgPrice;
       const currentValue = ov.manualValue ?? item.currentValue;
       const investAmount = item.valuationMode === "manual"
-        ? item.manualInvestAmount ?? item.investAmount
+        ? ov.manualInvestAmount ?? item.manualInvestAmount ?? item.investAmount
         : quantity * avgPrice;
       const profitLoss = currentValue - investAmount;
       const returnRate = investAmount > 0 ? (profitLoss / investAmount) * 100 : 0;
@@ -2828,24 +3052,65 @@ export default function DashboardPage() {
     if (!group || group.accounts.length === 0) return null;
     return group.accounts.map((acct) => {
       const items = acct.items
-        .filter((item) => !deletedKeys.has(`${item.sheetTab ?? ""}-${item.rowIndex ?? ""}`))
+        .filter((item) => !deletedKeys.has(assetKey(item)))
         .map((item) => {
-          const key = `${item.sheetTab ?? ""}-${item.rowIndex ?? ""}`;
+          const key = assetKey(item);
           const ov = itemOverrides[key];
           if (!ov) return item;
           const quantity = ov.quantity ?? item.quantity;
           const avgPrice = ov.avgPrice ?? item.avgPrice;
           const currentValue = ov.manualValue ?? item.currentValue;
           const investAmount = item.valuationMode === "manual"
-            ? item.manualInvestAmount ?? item.investAmount
+            ? ov.manualInvestAmount ?? item.manualInvestAmount ?? item.investAmount
             : quantity * avgPrice;
           const profitLoss = currentValue - investAmount;
           const returnRate = investAmount > 0 ? (profitLoss / investAmount) * 100 : 0;
           return { ...item, quantity, avgPrice, currentValue, investAmount, profitLoss, returnRate };
         });
-      return { account: acct, items };
+      return { account: { ...acct, items }, items };
     });
   })();
+
+  const managedAccountGroups = accountGroups
+    ? accountGroups
+        .filter(({ account }) => account.name.toLocaleLowerCase("ko-KR").includes(accountQuery.trim().toLocaleLowerCase("ko-KR")))
+        .filter(({ account }) => (
+          !hideInactiveAccounts
+          || (accountValueWithCashOverride(account, cashOverrides) > 0 && !isAccountStale(account))
+        ))
+        .sort((left, right) => {
+          if (accountSort === "name") return left.account.name.localeCompare(right.account.name, "ko-KR");
+          if (accountSort === "return") return right.account.returnRate - left.account.returnRate;
+          if (accountSort === "freshness") {
+            const leftTime = new Date(accountDataUpdatedAt(left.account) ?? 0).getTime();
+            const rightTime = new Date(accountDataUpdatedAt(right.account) ?? 0).getTime();
+            return rightTime - leftTime;
+          }
+          return accountValueWithCashOverride(right.account, cashOverrides)
+            - accountValueWithCashOverride(left.account, cashOverrides);
+        })
+    : null;
+  const visibleAccountNames = managedAccountGroups?.map(({ account }) => account.name) ?? [];
+  const allVisibleAccountsCollapsed = visibleAccountNames.length > 0
+    && visibleAccountNames.every((name) => collapsedAccounts.has(name));
+
+  function toggleAccount(accountName: string) {
+    setCollapsedAccounts((previous) => {
+      const next = new Set(previous);
+      if (next.has(accountName)) next.delete(accountName);
+      else next.add(accountName);
+      return next;
+    });
+  }
+
+  function toggleAllAccounts() {
+    setCollapsedAccounts((previous) => {
+      const next = new Set(previous);
+      if (allVisibleAccountsCollapsed) visibleAccountNames.forEach((name) => next.delete(name));
+      else visibleAccountNames.forEach((name) => next.add(name));
+      return next;
+    });
+  }
 
   const title = activeTab === "전체" ? "전체 자산 현황" : activeTab;
   const latestBenchmarkDate = benchmarkSeries
@@ -2956,14 +3221,32 @@ export default function DashboardPage() {
           </>
         )}
 
+        {activeTab !== "전체" && accountGroups && (
+          <AccountManagementToolbar
+            query={accountQuery}
+            sortMode={accountSort}
+            hideInactive={hideInactiveAccounts}
+            visibleCount={managedAccountGroups?.length ?? 0}
+            totalCount={accountGroups.length}
+            allCollapsed={allVisibleAccountsCollapsed}
+            onQueryChange={setAccountQuery}
+            onSortChange={setAccountSort}
+            onHideInactiveChange={setHideInactiveAccounts}
+            onToggleAll={toggleAllAccounts}
+          />
+        )}
+
         {/* 계좌별 현황 (개별주식, 개인연금, IRP) */}
         {activeTab !== "전체" && (() => {
           const group = summary?.groups.find((g) => g.category === activeTab);
           if (!group) return null;
           return (
             <AccountsOverview
-              accounts={group.accounts}
-              totalCash={group.cash}
+              accounts={managedAccountGroups?.map(({ account }) => account) ?? group.accounts}
+              totalCash={managedAccountGroups
+                ? managedAccountGroups.reduce((sum, { account }) => sum + account.cash, 0)
+                : group.cash}
+              categoryTotalValue={tabSummary?.totalValue ?? group.totalValue}
               editable={isEditable}
               cashOverrides={cashOverrides}
               onCashSave={saveCash}
@@ -2996,6 +3279,7 @@ export default function DashboardPage() {
                   <AccountsOverview
                     accounts={group.accounts}
                     totalCash={group.cash}
+                    categoryTotalValue={group.totalValue}
                     editable={isEditable}
                     cashOverrides={cashOverrides}
                     onCashSave={saveCash}
@@ -3015,7 +3299,7 @@ export default function DashboardPage() {
               {activeTab === "전체" ? "전체 종목" : `${activeTab} 종목`}
               {!loading && (() => {
                 const count = accountGroups
-                  ? accountGroups.reduce((s, ag) => s + ag.items.length, 0)
+                  ? (managedAccountGroups ?? []).reduce((s, ag) => s + ag.items.length, 0)
                   : displayItems.length;
                 return count > 0 ? <span className="ml-1.5 text-gray-400 font-normal">({count})</span> : null;
               })()}
@@ -3032,41 +3316,50 @@ export default function DashboardPage() {
           <div className="md:hidden">
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
-            ) : accountGroups ? (
-              accountGroups.map(({ account, items }) => (
+            ) : managedAccountGroups ? (
+              managedAccountGroups.length === 0 ? (
+                <p className="py-12 text-center text-sm text-gray-400">조건에 맞는 계좌가 없습니다.</p>
+              ) : managedAccountGroups.map(({ account, items }) => (
                 <div key={account.name}>
-                  <div className="flex items-center justify-between px-4 py-2 bg-[#f0f2f8] dark:bg-[#0f1923] border-b border-[#e0e0e0] dark:border-[#2a3a4a]">
-                    <span className="text-xs font-bold text-[#3d47cf] leading-tight">
-                      {account.name}
+                  <button
+                    type="button"
+                    onClick={() => toggleAccount(account.name)}
+                    aria-expanded={!collapsedAccounts.has(account.name)}
+                    className="flex w-full items-center justify-between gap-2 border-b border-[#e0e0e0] bg-[#f0f2f8] px-4 py-2 text-left dark:border-[#2a3a4a] dark:bg-[#0f1923]"
+                  >
+                    <span className="min-w-0 truncate text-xs font-bold leading-tight text-[#3d47cf]">
+                      {collapsedAccounts.has(account.name) ? "▸" : "▾"} {account.name}
                       <span className="ml-1.5 font-normal text-gray-400">({items.length})</span>
                     </span>
-                    <div className="flex items-center gap-1.5 h-5">
-                      <span className="text-xs text-gray-500 leading-tight">
+                    <span className="flex h-5 shrink-0 items-center gap-1.5">
+                      <span className="text-xs leading-tight text-gray-500">
                         {formatKRW(accountValueWithCashOverride(account, cashOverrides))}
                       </span>
                       <RateBadge rate={account.returnRate} />
-                    </div>
-                  </div>
-                  {items.map((item, idx) => (
-                    <AssetCard
-                      key={`${account.name}-${idx}`}
-                      item={item}
-                      editable={isEditable}
-                      onSave={(field, value) => saveItem(item, field, value)}
-                      onDelete={() => deleteItem(item)}
-                      todayQuote={item.code ? todayQuotes[item.code] : undefined}
-                    />
-                  ))}
-                  {isEditable && (
-                    <div className="px-4 py-3 border-t border-[#e0e0e0] dark:border-[#2a3a4a]">
-                      <button
-                        onClick={() => setAddModalAccount(account)}
-                        className="text-xs font-semibold text-white px-2 py-0.5 rounded-full"
-                        style={{ background: "#3d47cf" }}
-                      >
-                        + 추가
-                      </button>
-                    </div>
+                    </span>
+                  </button>
+                  {!collapsedAccounts.has(account.name) && (
+                    <>
+                      {items.map((item) => (
+                        <AssetCard
+                          key={assetKey(item)}
+                          item={item}
+                          editable={isEditable}
+                          onEdit={() => setEditingAsset(item)}
+                          todayQuote={item.code ? todayQuotes[item.code] : undefined}
+                        />
+                      ))}
+                      {isEditable && (
+                        <div className="border-t border-[#e0e0e0] px-4 py-3 dark:border-[#2a3a4a]">
+                          <button
+                            onClick={() => setAddModalAccount(account)}
+                            className="rounded-md bg-[#3d47cf] px-3 py-1.5 text-xs font-semibold text-white"
+                          >
+                            + 추가
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ))
@@ -3088,8 +3381,7 @@ export default function DashboardPage() {
                       key={`${sector}-${idx}`}
                       item={item}
                       editable={isEditable}
-                      onSave={(field, value) => saveItem(item, field, value)}
-                      onDelete={() => deleteItem(item)}
+                      onEdit={() => setEditingAsset(item)}
                       todayQuote={item.code ? todayQuotes[item.code] : undefined}
                     />
                   ))}
@@ -3103,8 +3395,7 @@ export default function DashboardPage() {
                   key={`${activeTab}-${idx}`}
                   item={item}
                   editable={isEditable}
-                  onSave={(field, value) => saveItem(item, field, value)}
-                  onDelete={() => deleteItem(item)}
+                  onEdit={() => setEditingAsset(item)}
                   todayQuote={item.code ? todayQuotes[item.code] : undefined}
                 />
               ))
@@ -3129,14 +3420,23 @@ export default function DashboardPage() {
               <tbody>
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-                ) : accountGroups ? (
-                  accountGroups.map(({ account, items }) => (
-                    <>
-                      <tr key={`acct-hd-${account.name}`} className="border-b border-[#e0e0e0] dark:border-[#2a3a4a]">
+                ) : managedAccountGroups ? (
+                  managedAccountGroups.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-sm text-gray-400">조건에 맞는 계좌가 없습니다.</td>
+                    </tr>
+                  ) : managedAccountGroups.map(({ account, items }) => (
+                    <Fragment key={account.name}>
+                      <tr className="border-b border-[#e0e0e0] dark:border-[#2a3a4a]">
                         <td colSpan={7} className="px-4 py-2 bg-[#f0f2f8] dark:bg-[#0f1923]">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-[#3d47cf] leading-tight">
-                              {account.name}
+                          <button
+                            type="button"
+                            onClick={() => toggleAccount(account.name)}
+                            aria-expanded={!collapsedAccounts.has(account.name)}
+                            className="flex w-full items-center justify-between gap-3 text-left"
+                          >
+                            <span className="text-xs font-bold leading-tight text-[#3d47cf]">
+                              {collapsedAccounts.has(account.name) ? "▸" : "▾"} {account.name}
                               <span className="ml-1.5 font-normal text-gray-400">({items.length}종목)</span>
                             </span>
                             <div className="flex items-center gap-1.5 h-5">
@@ -3151,10 +3451,10 @@ export default function DashboardPage() {
                               </span>
                               <RateBadge rate={account.returnRate} />
                             </div>
-                          </div>
+                          </button>
                         </td>
                       </tr>
-                      {items.map((item, idx) => (
+                      {!collapsedAccounts.has(account.name) && items.map((item, idx) => (
                         <AssetRow
                           key={`${account.name}-${idx}-${item.name}`}
                           item={item}
@@ -3164,7 +3464,7 @@ export default function DashboardPage() {
                           todayQuote={item.code ? todayQuotes[item.code] : undefined}
                         />
                       ))}
-                      {isEditable && (
+                      {!collapsedAccounts.has(account.name) && isEditable && (
                         <tr key={`acct-add-${account.name}`} className="border-b border-[#e0e0e0] dark:border-[#2a3a4a]">
                           <td colSpan={7} className="px-4 py-2">
                             <button
@@ -3178,12 +3478,12 @@ export default function DashboardPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   ))
                 ) : sectorGroups ? (
                   sectorGroups.map(({ sector, items, totalValue, totalProfitLoss, returnRate }) => (
-                    <>
-                      <tr key={`sector-hd-${sector}`} className="border-b border-[#e0e0e0] dark:border-[#2a3a4a]">
+                    <Fragment key={sector}>
+                      <tr className="border-b border-[#e0e0e0] dark:border-[#2a3a4a]">
                         <td colSpan={7} className="px-4 py-2 bg-[#f0f2f8] dark:bg-[#0f1923]">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-[#3d47cf]">
@@ -3213,7 +3513,7 @@ export default function DashboardPage() {
                           todayQuote={item.code ? todayQuotes[item.code] : undefined}
                         />
                       ))}
-                    </>
+                    </Fragment>
                   ))
                 ) : (
                   displayItems.map((item, idx) => (
@@ -3273,6 +3573,13 @@ export default function DashboardPage() {
           setEventSaveError(null);
         }}
         onSave={savePortfolioEvent}
+      />
+
+      <MobileAssetEditModal
+        item={editingAsset}
+        onClose={() => setEditingAsset(null)}
+        onSave={saveItemUpdates}
+        onDelete={deleteItem}
       />
 
       {/* 종목 추가 모달 */}
