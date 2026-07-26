@@ -181,6 +181,14 @@ export interface SyncRun {
   errorMessage?: string;
 }
 
+export type RebalanceCategory = "stocks" | "pension";
+
+export interface RebalanceTarget {
+  assetId: number;
+  targetWeight: number;
+  updatedAt?: string;
+}
+
 export interface CryptoAssetRow {
   id: number;
   ticker: string;
