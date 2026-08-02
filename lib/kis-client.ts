@@ -202,7 +202,7 @@ export async function fetchKISQuote(code: string): Promise<KisQuote | null> {
     }
 
     return null;
-  } catch (err: unknown) {
+  } catch {
     return null;
   }
 }

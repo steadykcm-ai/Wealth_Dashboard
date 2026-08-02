@@ -16,7 +16,7 @@ async function fetchYahooPrice(code: string): Promise<number | null> {
       return price;
     }
     return null;
-  } catch (err) {
+  } catch {
     return null;
   }
 }

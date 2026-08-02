@@ -32,7 +32,7 @@ async function searchAndValidate(
           market: market === ".KS" ? "KOSPI" : "KOSDAQ",
         });
       }
-    } catch (err) {
+    } catch {
       // Skip if code doesn't exist
     }
   }

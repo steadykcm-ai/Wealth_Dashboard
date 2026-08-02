@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import type {
   DailyLogItem,
-  CategorySnapshot,
   PortfolioChangeCandidate,
   PortfolioEvent,
   PortfolioEventCategory,

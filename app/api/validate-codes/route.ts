@@ -17,7 +17,7 @@ async function validateCode(code: string): Promise<{ valid: boolean; price?: num
       return { valid: true, price };
     }
     return { valid: false, error: "invalid_price" };
-  } catch (err) {
+  } catch {
     return { valid: false, error: "fetch_failed" };
   }
 }

@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test": "tsx --test tests/portfolio-validation.test.ts tests/performance-calculator.test.ts tests/retirement-calculator.test.ts",
     "start": "next start",
     "lint": "eslint app lib middleware.ts next.config.js --ext .js,.jsx,.ts,.tsx",
     "fetch-stocks": "node scripts/fetch-stocks.mjs",
@@ -35,6 +36,7 @@
     "eslint-config-next": "15.5.22",
     "postcss": "8.5.25",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.23.3",
     "typescript": "^5"
   },
   "overrides": {

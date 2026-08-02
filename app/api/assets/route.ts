@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AccountGroup, AssetCategory, AssetGroup, AssetItem, AssetSummary } from "@/lib/types";
+import type { AccountGroup, AssetCategory, AssetGroup, AssetSummary } from "@/lib/types";
 
 export const revalidate = 0;
 

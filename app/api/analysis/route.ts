@@ -5,7 +5,7 @@ import type {
   AssetItem,
   DailyLogItem,
 } from "@/lib/types";
-import { formatKRW, formatRate } from "@/lib/profit-calculator";
+import { formatKRW, formatRate } from "@/lib/number-format";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { isDashboardOwner } from "@/lib/auth-config";
 

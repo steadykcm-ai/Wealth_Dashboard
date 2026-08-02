@@ -81,25 +81,6 @@ export interface ProfitLogItem {
   returnRate: number;
 }
 
-export interface ExchangeGroup {
-  exchange: string;
-  items: AssetItem[];
-  cash: number;
-  totalInvest: number;
-  totalValue: number;
-  totalProfitLoss: number;
-  returnRate: number;
-}
-
-export interface CryptoApiResponse {
-  exchanges: ExchangeGroup[];
-  totalInvest: number;
-  totalValue: number;
-  totalProfitLoss: number;
-  returnRate: number;
-  updatedAt: string;
-}
-
 export interface DepositItem {
   date: string;
   category: string;
@@ -205,14 +186,4 @@ export interface RetirementSettings {
   expectedReturnRate: number;
   inflationRate: number;
   updatedAt?: string;
-}
-
-export interface CryptoAssetRow {
-  id: number;
-  ticker: string;
-  name: string;
-  quantity: number;
-  avg_price: number;
-  exchange: string;
-  is_cash: boolean;
 }
