@@ -1,8 +1,6 @@
 import { getRequiredSupabaseAdminClient } from "@/lib/supabase-admin";
 import { fetchKISDailyClose } from "@/lib/kis-client";
 
-const supabase = getRequiredSupabaseAdminClient();
-
 interface CategorySummary {
   invest: number;
   value: number;
@@ -90,6 +88,7 @@ function normalizeDomesticCode(code: string | null | undefined): string | null {
 }
 
 async function fetchCachedPrices(): Promise<Record<string, number>> {
+  const supabase = getRequiredSupabaseAdminClient();
   const { data: priceRows, error } = await supabase
     .from("prices")
     .select("code, price");
@@ -110,6 +109,7 @@ async function fetchClosingPrices(
   userId: string,
   date: string
 ): Promise<Record<string, number>> {
+  const supabase = getRequiredSupabaseAdminClient();
   const { data: assets, error } = await supabase
     .from("assets")
     .select("code")
@@ -153,6 +153,7 @@ async function calculateCategory(
   prices: Record<string, number>,
   userId: string
 ): Promise<CategorySummary> {
+  const supabase = getRequiredSupabaseAdminClient();
   const { data: assets, error } = await supabase
     .from("assets")
     .select("code, quantity, avg_price, valuation_mode, manual_invest_amount, manual_value")
@@ -198,6 +199,7 @@ async function calculateAccounts(
   date: string,
   prices: Record<string, number>
 ): Promise<DailyAccountLogData[]> {
+  const supabase = getRequiredSupabaseAdminClient();
   const [{ data: assets, error: assetsError }, { data: cashRecords, error: cashError }] = await Promise.all([
     supabase
       .from("assets")
@@ -276,6 +278,7 @@ async function calculateAccounts(
 }
 
 async function calculateCashByCategory(userId: string): Promise<CategoryCash> {
+  const supabase = getRequiredSupabaseAdminClient();
   const [{ data: cashRecords, error: cashError }, { data: assets, error: assetsError }] = await Promise.all([
     supabase
       .from("cash")
@@ -356,6 +359,7 @@ export async function calculateDailyLog(userId: string): Promise<{
 
 export async function saveDailyLog(userId: string): Promise<boolean> {
   try {
+    const supabase = getRequiredSupabaseAdminClient();
     const { daily: dailyData, accounts } = await calculateDailyLog(userId);
     const dataToSave = { ...dailyData, user_id: userId };
 

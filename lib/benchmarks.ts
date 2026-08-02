@@ -5,8 +5,6 @@ import {
   type KisIndexPoint,
 } from "@/lib/kis-client";
 
-const supabase = getRequiredSupabaseAdminClient();
-
 interface BenchmarkRow {
   symbol: "KOSPI" | "SPX";
   name: string;
@@ -41,6 +39,7 @@ export async function saveBenchmarkRange(
   startDate: string,
   endDate: string
 ): Promise<BenchmarkSaveResult> {
+  const supabase = getRequiredSupabaseAdminClient();
   const kospi = await fetchKISDomesticIndexSeries("0001", startDate, endDate);
   const spx = await fetchKISOverseasIndexSeries("SPX", startDate, endDate);
   const rows = [
