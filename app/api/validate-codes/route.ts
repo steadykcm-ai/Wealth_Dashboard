@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
+import { isDashboardOwner } from "@/lib/auth-config";
 import YahooFinance from "yahoo-finance2";
 
 export const revalidate = 0;
@@ -25,7 +26,7 @@ export async function GET() {
   try {
     const supabaseServer = await createSupabaseServer();
     const { data: { user } } = await supabaseServer.auth.getUser();
-    if (!user) {
+    if (!user || !isDashboardOwner(user.id)) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 

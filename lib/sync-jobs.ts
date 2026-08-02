@@ -4,10 +4,11 @@ import { hasMemoryCachedKisToken } from "@/lib/kis-client";
 import { getKisTokenCacheSnapshot } from "@/lib/kis-token-cache";
 import { fetchStockPrices } from "@/lib/price-fetcher";
 import { getRequiredSupabaseAdminClient } from "@/lib/supabase-admin";
+import { DASHBOARD_OWNER_USER_ID } from "@/lib/auth-config";
 import { executeSyncRun, type SyncJobResult } from "@/lib/sync-runs";
 import type { SyncRunTrigger } from "@/lib/types";
 
-export const DASHBOARD_OWNER_USER_ID = "56701cc8-3dff-405d-a2b7-1ff4301e92cc";
+export { DASHBOARD_OWNER_USER_ID };
 
 function getKoreaDateString(): string {
   return new Intl.DateTimeFormat("en-CA", {

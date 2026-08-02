@@ -11,6 +11,10 @@ export default function LoginPage() {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
   useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get("error");
+    if (reason === "unauthorized") setError("허용되지 않은 계정입니다. 소유자 계정으로 로그인해주세요.");
+    if (reason === "callback") setError("로그인 확인에 실패했습니다. 다시 시도해주세요.");
+
     // 클라이언트 사이드에서만 Supabase 초기화
     async function initSupabase() {
       try {

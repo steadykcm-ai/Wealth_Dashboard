@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { getRequiredSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createPortfolioBackup, restorePortfolioBackup } from "@/lib/portfolio-backup";
+import { isDashboardOwner } from "@/lib/auth-config";
 
 async function getAuthenticatedUserId(): Promise<string | null> {
   const supabaseServer = await createSupabaseServer();
   const { data: { user } } = await supabaseServer.auth.getUser();
-  return user?.id ?? null;
+  return user && isDashboardOwner(user.id) ? user.id : null;
 }
 
 export async function GET(request: NextRequest) {

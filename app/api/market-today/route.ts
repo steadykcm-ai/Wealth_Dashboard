@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchKISQuote } from "@/lib/kis-client";
+import { createSupabaseServer } from "@/lib/supabase-server";
+import { isDashboardOwner } from "@/lib/auth-config";
 
 export const runtime = "nodejs";
 export const revalidate = 0;
@@ -28,6 +30,11 @@ function sleep(ms: number): Promise<void> {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    if (!isDashboardOwner(user.id)) return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
+
     const body = (await req.json()) as MarketTodayRequest;
     const codes = Array.isArray(body.codes)
       ? body.codes.filter((code): code is string => typeof code === "string" && code.length > 0)

@@ -6,6 +6,8 @@ import type {
   DailyLogItem,
 } from "@/lib/types";
 import { formatKRW, formatRate } from "@/lib/profit-calculator";
+import { createSupabaseServer } from "@/lib/supabase-server";
+import { isDashboardOwner } from "@/lib/auth-config";
 
 export const runtime = "nodejs";
 
@@ -39,6 +41,19 @@ interface WeeklyPoint {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+    if (!isDashboardOwner(user.id)) {
+      return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
+    }
+    const contentLength = Number(req.headers.get("content-length") ?? 0);
+    if (contentLength > 250_000) {
+      return NextResponse.json({ error: "분석 요청이 너무 큽니다." }, { status: 413 });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -48,6 +63,16 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as AnalysisRequestBody;
+    if (
+      typeof body.category !== "string"
+      || !body.group
+      || !Array.isArray(body.group.items)
+      || !Array.isArray(body.group.accounts)
+      || !Array.isArray(body.logs)
+      || JSON.stringify(body).length > 250_000
+    ) {
+      return NextResponse.json({ error: "분석 요청 형식이 올바르지 않습니다." }, { status: 400 });
+    }
     const prompt = buildAnalysisPrompt(body.category, body.group, body.logs);
     const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 

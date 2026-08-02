@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { isDashboardOwner } from "@/lib/auth-config";
 
 export async function middleware(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -68,6 +69,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(
       new URL(`/login?next=${encodeURIComponent(requestUrl.pathname)}`, requestUrl)
     );
+  }
+
+  if (!isDashboardOwner(user.id)) {
+    return NextResponse.redirect(new URL("/login?error=unauthorized", requestUrl));
   }
 
   return response;

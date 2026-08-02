@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
+import { isDashboardOwner } from "@/lib/auth-config";
 import { runBenchmarkSync, runDailyLogSync, runPriceSync } from "@/lib/sync-jobs";
 import type { SyncJob, SyncRun, SyncRunStatus, SyncRunTrigger } from "@/lib/types";
 
@@ -33,7 +34,7 @@ export async function GET() {
   try {
     const supabaseServer = await createSupabaseServer();
     const { data: { user } } = await supabaseServer.auth.getUser();
-    if (!user) {
+    if (!user || !isDashboardOwner(user.id)) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
   try {
     const supabaseServer = await createSupabaseServer();
     const { data: { user } } = await supabaseServer.auth.getUser();
-    if (!user) {
+    if (!user || !isDashboardOwner(user.id)) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
