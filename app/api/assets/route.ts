@@ -205,6 +205,7 @@ async function buildAssetSummaryFromSupabase(
   return {
     totalInvest,
     totalValue,
+    unallocatedCash: ungroupedCash,
     totalProfitLoss,
     returnRate: totalInvest > 0 ? (totalProfitLoss / totalInvest) * 100 : 0,
     priceUpdatedAt,

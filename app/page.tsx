@@ -6,6 +6,8 @@ import { useTheme } from "next-themes";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useAssets } from "@/lib/useAssets";
 import { formatKRW, formatRate } from "@/lib/profit-calculator";
+import { validatePortfolioSummary } from "@/lib/portfolio-validation";
+import type { PortfolioValidationReport } from "@/lib/portfolio-validation";
 import type {
   AssetCategory,
   AssetItem,
@@ -2632,6 +2634,92 @@ function NotificationCenter({
   );
 }
 
+function PortfolioValidationPanel({ report }: { report: PortfolioValidationReport }) {
+  const [isExpanded, setIsExpanded] = useState(report.calculationIssues > 0);
+  const hasCalculationIssue = report.calculationIssues > 0;
+  const hasFreshnessIssue = report.freshnessIssues > 0;
+  const visibleIssues = report.issues.slice(0, 12);
+
+  return (
+    <section
+      className="mx-4 mb-4 overflow-hidden rounded-xl border border-[#e0e0e0] bg-white dark:border-[#2a3a4a] dark:bg-[#1a2332] md:mx-0"
+      aria-label="자산 데이터 검증"
+    >
+      <button
+        type="button"
+        onClick={() => setIsExpanded((previous) => !previous)}
+        aria-expanded={isExpanded}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-gray-900 dark:text-white">자산 데이터 검증</span>
+          <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+            종목부터 전체 자산까지 합계를 다시 계산합니다
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span
+            className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+              hasCalculationIssue
+                ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+            }`}
+          >
+            {hasCalculationIssue ? `계산 오류 ${report.calculationIssues}건` : "계산 일치"}
+          </span>
+          <span className="text-sm text-gray-400" aria-hidden="true">{isExpanded ? "▲" : "▼"}</span>
+        </span>
+      </button>
+
+      {isExpanded && (
+        <div className="border-t border-[#eeeeee] px-4 py-3 dark:border-[#2a3a4a]">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">계산 검증</p>
+              <p className={`mt-0.5 text-sm font-semibold ${hasCalculationIssue ? "text-red-600" : "text-emerald-600"}`}>
+                {report.calculationChecks - report.calculationIssues}/{report.calculationChecks} 일치
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">가격·평가 기준일</p>
+              <p className={`mt-0.5 text-sm font-semibold ${hasFreshnessIssue ? "text-amber-600" : "text-emerald-600"}`}>
+                {hasFreshnessIssue ? `확인 필요 ${report.freshnessIssues}건` : `${report.freshnessChecks}종목 정상`}
+              </p>
+            </div>
+          </div>
+
+          {visibleIssues.length === 0 ? (
+            <p className="mt-3 border-t border-[#eeeeee] pt-3 text-xs text-gray-500 dark:border-[#2a3a4a] dark:text-gray-400">
+              합계와 데이터 기준일에서 발견된 문제가 없습니다.
+            </p>
+          ) : (
+            <div className="mt-3 border-t border-[#eeeeee] dark:border-[#2a3a4a]">
+              {visibleIssues.map((issue) => (
+                <div key={issue.id} className="flex items-start justify-between gap-3 border-b border-[#eeeeee] py-2.5 last:border-b-0 dark:border-[#2a3a4a]">
+                  <span className="min-w-0">
+                    <span className="block text-xs font-semibold text-gray-800 dark:text-gray-200">{issue.title}</span>
+                    <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">{issue.detail}</span>
+                  </span>
+                  {typeof issue.difference === "number" && (
+                    <span className="shrink-0 text-xs font-semibold text-red-600">
+                      {issue.difference >= 0 ? "+" : ""}{formatKRW(issue.difference)}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {report.issues.length > visibleIssues.length && (
+                <p className="py-2 text-center text-[11px] text-gray-400">
+                  그 외 {report.issues.length - visibleIssues.length}건
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 type DataSyncState = "ok" | "loading" | "error" | "stale" | "empty";
 
 interface DataSyncItem {
@@ -4462,13 +4550,14 @@ export default function DashboardPage() {
     if (!summary) return null;
     if (activeTab === "전체") {
       const totalInvest = adjustedGroups.reduce((s, g) => s + g.totalInvest, 0);
-      const totalValue = adjustedGroups.reduce((sum, group) => {
+      const groupedTotalValue = adjustedGroups.reduce((sum, group) => {
         const displayCash = group.accounts.reduce(
           (cashSum, account) => cashSum + (cashOverrides[account.name] ?? account.cash),
           0
         );
         return sum + group.totalValue - group.cash + displayCash;
       }, 0);
+      const totalValue = groupedTotalValue + (summary.unallocatedCash ?? 0);
       const totalProfitLoss = adjustedGroups.reduce((sum, group) => sum + group.totalProfitLoss, 0);
       const returnRate = totalInvest > 0 ? (totalProfitLoss / totalInvest) * 100 : 0;
       return {
@@ -4649,10 +4738,22 @@ export default function DashboardPage() {
     .flatMap((series) => series.points.map((point) => point.date))
     .sort()
     .at(-1);
-  const dataQualityIssues = useMemo(
-    () => buildDataQualityIssues(summary, profitLogs, portfolioEvents),
-    [portfolioEvents, profitLogs, summary]
+  const portfolioValidation = useMemo(
+    () => summary ? validatePortfolioSummary(summary) : null,
+    [summary]
   );
+  const dataQualityIssues = useMemo(() => {
+    const existingIssues = buildDataQualityIssues(summary, profitLogs, portfolioEvents);
+    const calculationIssues: DataQualityIssue[] = (portfolioValidation?.issues ?? [])
+      .filter((issue) => issue.kind === "calculation")
+      .map((issue) => ({
+        id: `validation-${issue.id}`,
+        severity: issue.severity,
+        title: issue.title,
+        detail: issue.detail,
+      }));
+    return [...calculationIssues, ...existingIssues];
+  }, [portfolioEvents, portfolioValidation, profitLogs, summary]);
   const allocationDriftItems = useAllocationDriftItems(adjustedGroups);
   const retirementStockAssets = adjustedGroups.find((group) => group.category === "개별주식")?.totalValue ?? 0;
   const retirementPensionAssets = adjustedGroups.find((group) => group.category === "개인연금")?.totalValue ?? 0;
@@ -4713,6 +4814,10 @@ export default function DashboardPage() {
           onOpenChanges={() => setEventReviewOpen(true)}
           onTabChange={setActiveTab}
         />
+
+        {activeTab === "전체" && portfolioValidation && (
+          <PortfolioValidationPanel report={portfolioValidation} />
+        )}
 
         {/* Summary 카드 */}
         <div className="grid grid-cols-3 gap-2 px-4 md:px-0 mb-4 md:mb-6 md:gap-4">

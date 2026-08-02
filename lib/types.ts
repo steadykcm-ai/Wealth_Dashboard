@@ -50,6 +50,7 @@ export interface AssetGroup {
 export interface AssetSummary {
   totalInvest: number;
   totalValue: number;
+  unallocatedCash?: number;
   totalProfitLoss: number;
   returnRate: number;
   priceUpdatedAt?: string;
