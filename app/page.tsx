@@ -4,6 +4,7 @@ import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from "rea
 import { useAssets } from "@/lib/useAssets";
 import { formatKRW, formatRate } from "@/lib/number-format";
 import { validatePortfolioSummary } from "@/lib/portfolio-validation";
+import type { AssetUpdates, BulkAssetUpdate, EditableAssetField } from "@/lib/asset-updates";
 import type {
   AssetCategory,
   AssetItem,
@@ -35,8 +36,6 @@ interface TodayQuote {
   changeRate: number;
 }
 
-type EditableAssetField = "quantity" | "avgPrice" | "manualInvestAmount" | "manualValue";
-type AssetUpdates = Partial<Record<EditableAssetField, number>>;
 type AccountSortMode = "value" | "return" | "name" | "freshness";
 
 // 종목 데이터: [종목명, GOOGLEFINANCE 티커] 형식
@@ -62,6 +61,7 @@ const PrintablePortfolioReport = dynamic(() => import("@/components/dashboard/pe
 const RetirementPlanner = dynamic(() => import("@/components/dashboard/retirement-planner").then((module) => module.RetirementPlanner));
 const BackupPanel = dynamic(() => import("@/components/dashboard/backup-panel").then((module) => module.BackupPanel));
 const PortfolioAnalysisPanel = dynamic(() => import("@/components/dashboard/portfolio-analysis-panel").then((module) => module.PortfolioAnalysisPanel));
+const MobileBulkEditor = dynamic(() => import("@/components/dashboard/mobile-bulk-editor").then((module) => module.MobileBulkEditor));
 
 // ── 유틸 ────────────────────────────────────────────────
 function initials(name: string): string {
@@ -2123,6 +2123,7 @@ export default function DashboardPage() {
   const [hideInactiveAccounts, setHideInactiveAccounts] = useState(false);
   const [collapsedAccounts, setCollapsedAccounts] = useState<Set<string>>(new Set());
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
+  const [bulkEditingAccount, setBulkEditingAccount] = useState<{ accountName: string; items: AssetItem[] } | null>(null);
 
   const fetchSyncRuns = useCallback(async () => {
     setSyncRunsLoading(true);
@@ -2187,6 +2188,20 @@ export default function DashboardPage() {
     const key = assetKey(item);
     setItemOverrides((prev) => ({ ...prev, [key]: { ...(prev[key] ?? {}), ...updates } }));
     // 대시보드 데이터 갱신
+    await reload();
+  }
+
+  async function saveBulkItemUpdates(items: BulkAssetUpdate[]) {
+    const res = await fetch("/api/assets/item", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    if (!res.ok) {
+      const body = await res.json() as { error?: string };
+      throw new Error(body.error ?? "일괄 저장 실패");
+    }
+    setItemOverrides({});
     await reload();
   }
 
@@ -2794,23 +2809,37 @@ export default function DashboardPage() {
                 <p className="py-12 text-center text-sm text-gray-400">조건에 맞는 계좌가 없습니다.</p>
               ) : managedAccountGroups.map(({ account, items }) => (
                 <div key={account.name}>
-                  <button
-                    type="button"
-                    onClick={() => toggleAccount(account.name)}
-                    aria-expanded={!collapsedAccounts.has(account.name)}
-                    className="flex w-full items-center justify-between gap-2 border-b border-[#e0e0e0] bg-[#f0f2f8] px-4 py-2 text-left dark:border-[#2a3a4a] dark:bg-[#0f1923]"
-                  >
-                    <span className="min-w-0 truncate text-xs font-bold leading-tight text-[#3d47cf]">
-                      {collapsedAccounts.has(account.name) ? "▸" : "▾"} {account.name}
-                      <span className="ml-1.5 font-normal text-gray-400">({items.length})</span>
-                    </span>
-                    <span className="flex h-5 shrink-0 items-center gap-1.5">
-                      <span className="text-xs leading-tight text-gray-500">
-                        {formatKRW(accountValueWithCashOverride(account, cashOverrides))}
+                  <div className="flex items-center border-b border-[#e0e0e0] bg-[#f0f2f8] px-2 py-1.5 dark:border-[#2a3a4a] dark:bg-[#0f1923]">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccount(account.name)}
+                      aria-expanded={!collapsedAccounts.has(account.name)}
+                      className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2 py-1 text-left"
+                    >
+                      <span className="min-w-0 truncate text-xs font-bold leading-tight text-[#3d47cf]">
+                        {collapsedAccounts.has(account.name) ? "▸" : "▾"} {account.name}
+                        <span className="ml-1.5 font-normal text-gray-400">({items.length})</span>
                       </span>
-                      <RateBadge rate={account.returnRate} />
-                    </span>
-                  </button>
+                      <span className="flex h-5 shrink-0 items-center gap-1.5">
+                        <span className="text-xs leading-tight text-gray-500">
+                          {formatKRW(accountValueWithCashOverride(account, cashOverrides))}
+                        </span>
+                        <RateBadge rate={account.returnRate} />
+                      </span>
+                    </button>
+                    {isEditable && items.some((item) => Number.isInteger(item.id)) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAsset(null);
+                          setBulkEditingAccount({ accountName: account.name, items });
+                        }}
+                        className="ml-1 shrink-0 rounded-md border border-[#b9c0d0] bg-white px-2 py-1.5 text-[11px] font-semibold text-[#3d47cf] dark:border-[#3a4658] dark:bg-[#172231]"
+                      >
+                        일괄 수정
+                      </button>
+                    )}
+                  </div>
                   {!collapsedAccounts.has(account.name) && (
                     <>
                       {items.map((item) => (
@@ -3053,6 +3082,12 @@ export default function DashboardPage() {
         onClose={() => setEditingAsset(null)}
         onSave={saveItemUpdates}
         onDelete={deleteItem}
+      />
+
+      <MobileBulkEditor
+        account={bulkEditingAccount}
+        onClose={() => setBulkEditingAccount(null)}
+        onSave={saveBulkItemUpdates}
       />
 
       {/* 종목 추가 모달 */}

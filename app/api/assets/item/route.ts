@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { toAssetUpdateData } from "@/lib/asset-updates";
+import type { AssetUpdates, BulkAssetUpdate, EditableAssetField } from "@/lib/asset-updates";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
-type EditableAssetField = "quantity" | "avgPrice" | "manualInvestAmount" | "manualValue";
-
-const EDITABLE_FIELDS: EditableAssetField[] = [
-  "quantity",
-  "avgPrice",
-  "manualInvestAmount",
-  "manualValue",
-];
+const MAX_BULK_UPDATES = 100;
 
 export async function POST(req: NextRequest) {
   try {
@@ -100,7 +95,7 @@ export async function PATCH(req: NextRequest) {
       id?: number;
       field?: EditableAssetField;
       value?: number;
-      updates?: Partial<Record<EditableAssetField, number>>;
+      updates?: AssetUpdates;
     };
 
     const id = Number(body.id);
@@ -115,30 +110,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "필수 파라미터 누락" }, { status: 400 });
     }
 
-    const updateData: Record<string, number | string> = {};
-    let updatesManualValuation = false;
-    for (const [rawField, rawValue] of updateEntries) {
-      if (!EDITABLE_FIELDS.includes(rawField as EditableAssetField)) {
-        return NextResponse.json({ error: "지원하지 않는 필드" }, { status: 400 });
-      }
-      const field = rawField as EditableAssetField;
-      const value = Number(rawValue);
-      if (!Number.isFinite(value) || value <= 0) {
-        return NextResponse.json({ error: "유효하지 않은 값" }, { status: 400 });
-      }
-
-      if (field === "quantity") updateData.quantity = value;
-      if (field === "avgPrice") updateData.avg_price = value;
-      if (field === "manualInvestAmount") {
-        updateData.manual_invest_amount = value;
-        updatesManualValuation = true;
-      }
-      if (field === "manualValue") {
-        updateData.manual_value = value;
-        updatesManualValuation = true;
-      }
+    let updateData: Record<string, number | string>;
+    try {
+      updateData = toAssetUpdateData(updates);
+    } catch (validationError: unknown) {
+      const message = validationError instanceof Error ? validationError.message : "수정 값이 올바르지 않습니다.";
+      return NextResponse.json({ error: message }, { status: 400 });
     }
-    if (updatesManualValuation) updateData.valuation_updated_at = new Date().toISOString();
 
     const { error } = await supabaseServer
       .from("assets")
@@ -151,6 +129,67 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "서버 오류";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const supabaseServer = await createSupabaseServer();
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const body = await req.json() as { items?: BulkAssetUpdate[] };
+    const items = body.items ?? [];
+    if (items.length === 0 || items.length > MAX_BULK_UPDATES) {
+      return NextResponse.json(
+        { error: `한 번에 1~${MAX_BULK_UPDATES}개 종목을 수정할 수 있습니다.` },
+        { status: 400 }
+      );
+    }
+
+    const ids = items.map((item) => Number(item.id));
+    if (ids.some((id) => !Number.isInteger(id) || id <= 0) || new Set(ids).size !== ids.length) {
+      return NextResponse.json({ error: "종목 ID가 올바르지 않습니다." }, { status: 400 });
+    }
+
+    const valuationUpdatedAt = new Date().toISOString();
+    let prepared: Array<{ id: number; updateData: Record<string, number | string> }>;
+    try {
+      prepared = items.map((item) => ({
+        id: item.id,
+        updateData: toAssetUpdateData(item.updates, valuationUpdatedAt),
+      }));
+    } catch (validationError: unknown) {
+      const message = validationError instanceof Error ? validationError.message : "수정 값이 올바르지 않습니다.";
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+
+    const { data: ownedAssets, error: ownershipError } = await supabaseServer
+      .from("assets")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("id", ids);
+    if (ownershipError) throw ownershipError;
+    if ((ownedAssets ?? []).length !== ids.length) {
+      return NextResponse.json({ error: "수정 권한이 없는 종목이 포함되어 있습니다." }, { status: 403 });
+    }
+
+    const results = await Promise.all(prepared.map(({ id, updateData }) => (
+      supabaseServer
+        .from("assets")
+        .update(updateData)
+        .eq("id", id)
+        .eq("user_id", user.id)
+    )));
+    const failed = results.find((result) => result.error);
+    if (failed?.error) throw failed.error;
+
+    return NextResponse.json({ ok: true, updated: prepared.length });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "일괄 수정 중 서버 오류가 발생했습니다.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
