@@ -75,11 +75,9 @@ function Sparkline({ item }: { item: MarketInstrument }) {
   }
   return (
     <div className="h-9 w-24" aria-hidden="true">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={item.points.slice(-20)} margin={{ top: 4, right: 1, bottom: 4, left: 1 }}>
-          <Line type="monotone" dataKey="value" stroke={color} strokeWidth={1.7} dot={false} isAnimationActive animationDuration={500} />
-        </LineChart>
-      </ResponsiveContainer>
+      <LineChart width={96} height={36} data={item.points.slice(-20)} margin={{ top: 4, right: 1, bottom: 4, left: 1 }}>
+        <Line type="monotone" dataKey="value" stroke={color} strokeWidth={1.7} dot={false} isAnimationActive animationDuration={500} />
+      </LineChart>
     </div>
   );
 }
