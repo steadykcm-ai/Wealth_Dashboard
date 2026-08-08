@@ -27,6 +27,7 @@ const TABS = [
   { id: "전체", label: "전체" },
   { id: "개별주식", label: "주식" },
   { id: "개인연금", label: "연금" },
+  { id: "시장", label: "시장" },
 ];
 
 function useMounted(): boolean {
@@ -575,6 +576,7 @@ export function Sidebar({
     { id: "전체", label: "전체 자산" },
     { id: "개별주식", label: "개별주식" },
     { id: "개인연금", label: "개인연금" },
+    { id: "시장", label: "시장 동향" },
   ];
   return (
     <aside
@@ -615,11 +617,13 @@ export function MobileHeader({
   onTabChange,
   onRefetch,
   refreshing,
+  showRefresh = true,
 }: {
   activeTab: string;
   onTabChange: (t: string) => void;
   onRefetch: () => void;
   refreshing: boolean;
+  showRefresh?: boolean;
 }) {
   async function handleLogout() {
     const { supabase } = await import("@/lib/supabase-browser");
@@ -637,15 +641,17 @@ export function MobileHeader({
         </span>
         <div className="flex items-center gap-2">
           <ThemeToggle className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-[#2a3a4a] hover:text-white" />
-          <button
-            onClick={onRefetch}
-            disabled={refreshing}
-            className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-            style={{ background: "#3d47cf" }}
-            title="가격 새로고침"
-          >
-            {refreshing ? "⏳" : "↻"}
-          </button>
+          {showRefresh && (
+            <button
+              onClick={onRefetch}
+              disabled={refreshing}
+              className="text-xs font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              style={{ background: "#3d47cf" }}
+              title="가격 새로고침"
+            >
+              {refreshing ? "⏳" : "↻"}
+            </button>
+          )}
           <button
             onClick={handleLogout}
             className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#2a3a4a]"

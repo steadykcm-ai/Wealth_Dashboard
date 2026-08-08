@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test": "tsx --test tests/portfolio-validation.test.ts tests/performance-calculator.test.ts tests/retirement-calculator.test.ts tests/asset-updates.test.ts",
+    "test": "tsx --test tests/portfolio-validation.test.ts tests/performance-calculator.test.ts tests/retirement-calculator.test.ts tests/asset-updates.test.ts tests/market-data.test.ts",
     "start": "next start",
     "lint": "eslint app lib middleware.ts next.config.js --ext .js,.jsx,.ts,.tsx",
     "fetch-stocks": "node scripts/fetch-stocks.mjs",
@@ -40,6 +40,7 @@
     "typescript": "^5"
   },
   "overrides": {
+    "nanoid": "3.3.17",
     "postcss": "8.5.25",
     "sharp": "0.35.3"
   }

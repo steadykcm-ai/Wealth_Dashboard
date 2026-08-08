@@ -58,10 +58,39 @@ interface KisOverseasIndexResponse {
   }>;
 }
 
+interface KisDomesticIndexQuoteResponse {
+  rt_cd?: string;
+  msg_cd?: string;
+  msg1?: string;
+  output?: {
+    bstp_nmix_prpr?: string;
+    bstp_nmix_prdy_vrss?: string;
+    bstp_nmix_prdy_ctrt?: string;
+  };
+}
+
+interface KisOverseasMarketResponse extends KisOverseasIndexResponse {
+  output1?: {
+    ovrs_nmix_prpr?: string;
+    ovrs_nmix_prdy_vrss?: string;
+    prdy_ctrt?: string;
+  };
+}
+
 export interface KisIndexPoint {
   date: string;
   value: number;
 }
+
+export interface KisMarketOverview {
+  price: number;
+  changeAmount: number;
+  changeRate: number;
+  asOfDate?: string;
+  points: KisIndexPoint[];
+}
+
+export type KisOverseasMarketDivision = "N" | "X" | "I" | "S";
 
 function toKisDate(date: string): string {
   return date.replace(/-/g, "");
@@ -389,4 +418,132 @@ export async function fetchKISOverseasIndexSeries(
   return Array.from(points.entries())
     .map(([date, value]) => ({ date, value }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export async function fetchKISDomesticIndexOverview(
+  code: string,
+  startDate: string,
+  endDate: string
+): Promise<KisMarketOverview> {
+  const appKey = process.env.KIS_APP_KEY;
+  const appSecret = process.env.KIS_APP_SECRET;
+  if (!appKey || !appSecret) throw new Error("KIS 인증 정보가 설정되지 않았습니다.");
+
+  const token = await getAccessToken();
+  const [quoteResponse, points] = await Promise.all([
+    fetch(
+      `${BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-index-price?${new URLSearchParams({
+        FID_COND_MRKT_DIV_CODE: "U",
+        FID_INPUT_ISCD: code,
+      }).toString()}`,
+      {
+        cache: "no-store",
+        headers: {
+          authorization: `Bearer ${token}`,
+          appkey: appKey,
+          appsecret: appSecret,
+          tr_id: "FHPUP02100000",
+          custtype: "P",
+        },
+      }
+    ),
+    fetchKISDomesticIndexSeries(code, startDate, endDate),
+  ]);
+
+  if (!quoteResponse.ok) {
+    throw new Error(`KIS 국내지수 조회 실패: HTTP ${quoteResponse.status}`);
+  }
+  const data = (await quoteResponse.json()) as KisDomesticIndexQuoteResponse;
+  if (data.rt_cd !== "0") {
+    throw new Error(
+      `KIS 국내지수 조회 실패: ${data.msg_cd ?? "알 수 없는 오류"} ${data.msg1 ?? ""}`.trim()
+    );
+  }
+
+  const price = Number(data.output?.bstp_nmix_prpr);
+  const changeAmount = Number(data.output?.bstp_nmix_prdy_vrss ?? 0);
+  const changeRate = Number(data.output?.bstp_nmix_prdy_ctrt ?? 0);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error("KIS 국내지수 응답에 현재가가 없습니다.");
+  }
+
+  return {
+    price,
+    changeAmount: Number.isFinite(changeAmount) ? changeAmount : 0,
+    changeRate: Number.isFinite(changeRate) ? changeRate : 0,
+    asOfDate: points.at(-1)?.date,
+    points,
+  };
+}
+
+export async function fetchKISOverseasMarketOverview(
+  division: KisOverseasMarketDivision,
+  symbol: string,
+  startDate: string,
+  endDate: string
+): Promise<KisMarketOverview> {
+  const appKey = process.env.KIS_APP_KEY;
+  const appSecret = process.env.KIS_APP_SECRET;
+  if (!appKey || !appSecret) throw new Error("KIS 인증 정보가 설정되지 않았습니다.");
+
+  const token = await getAccessToken();
+  const params = new URLSearchParams({
+    FID_COND_MRKT_DIV_CODE: division,
+    FID_INPUT_ISCD: symbol,
+    FID_INPUT_DATE_1: toKisDate(startDate),
+    FID_INPUT_DATE_2: toKisDate(endDate),
+    FID_PERIOD_DIV_CODE: "D",
+  });
+  const response = await fetch(
+    `${BASE_URL}/uapi/overseas-price/v1/quotations/inquire-daily-chartprice?${params.toString()}`,
+    {
+      cache: "no-store",
+      headers: {
+        authorization: `Bearer ${token}`,
+        appkey: appKey,
+        appsecret: appSecret,
+        tr_id: "FHKST03030100",
+        custtype: "P",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`KIS 시장 시세 조회 실패(${symbol}): HTTP ${response.status}`);
+  }
+  const data = (await response.json()) as KisOverseasMarketResponse;
+  if (data.rt_cd !== "0") {
+    throw new Error(
+      `KIS 시장 시세 조회 실패(${symbol}): ${data.msg_cd ?? "알 수 없는 오류"} ${data.msg1 ?? ""}`.trim()
+    );
+  }
+
+  const points = (data.output2 ?? [])
+    .map((row) => {
+      const rawDate = row.stck_bsop_date;
+      const value = Number(row.ovrs_nmix_prpr);
+      if (!rawDate || !Number.isFinite(value) || value <= 0) return null;
+      return { date: toIsoDate(rawDate), value };
+    })
+    .filter((point): point is KisIndexPoint => point !== null)
+    .sort((left, right) => left.date.localeCompare(right.date));
+
+  const latestPoint = points.at(-1);
+  const previousPoint = points.at(-2);
+  const outputPrice = Number(data.output1?.ovrs_nmix_prpr);
+  const price = Number.isFinite(outputPrice) && outputPrice > 0 ? outputPrice : latestPoint?.value;
+  if (!price || price <= 0) throw new Error(`KIS ${symbol} 응답에 현재가가 없습니다.`);
+
+  const outputChangeAmount = Number(data.output1?.ovrs_nmix_prdy_vrss);
+  const outputChangeRate = Number(data.output1?.prdy_ctrt);
+  const derivedChange = previousPoint ? price - previousPoint.value : 0;
+  const derivedRate = previousPoint?.value ? (derivedChange / previousPoint.value) * 100 : 0;
+
+  return {
+    price,
+    changeAmount: Number.isFinite(outputChangeAmount) ? outputChangeAmount : derivedChange,
+    changeRate: Number.isFinite(outputChangeRate) ? outputChangeRate : derivedRate,
+    asOfDate: latestPoint?.date,
+    points,
+  };
 }

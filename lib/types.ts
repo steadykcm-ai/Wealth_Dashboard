@@ -116,6 +116,39 @@ export interface BenchmarkSeries {
   points: BenchmarkPoint[];
 }
 
+export type MarketCategory = "indices" | "fx" | "commodities" | "crypto";
+export type MarketDataSource = "KIS" | "Upbit" | "Yahoo";
+
+export interface MarketTrendPoint {
+  date: string;
+  value: number;
+}
+
+export interface MarketInstrument {
+  id: string;
+  category: MarketCategory;
+  name: string;
+  symbol: string;
+  price: number | null;
+  changeAmount: number | null;
+  changeRate: number | null;
+  unit: string;
+  source: MarketDataSource;
+  sourceLabel: string;
+  asOfDate?: string;
+  updatedAt: string;
+  points: MarketTrendPoint[];
+  status: "ok" | "fallback" | "unavailable";
+  error?: string;
+}
+
+export interface MarketOverviewResponse {
+  items: MarketInstrument[];
+  updatedAt: string;
+  partial: boolean;
+  unavailableCount: number;
+}
+
 export type PortfolioEventCategory = "stocks" | "pension";
 export type PortfolioEventType =
   | "deposit"

@@ -62,6 +62,7 @@ const RetirementPlanner = dynamic(() => import("@/components/dashboard/retiremen
 const BackupPanel = dynamic(() => import("@/components/dashboard/backup-panel").then((module) => module.BackupPanel));
 const PortfolioAnalysisPanel = dynamic(() => import("@/components/dashboard/portfolio-analysis-panel").then((module) => module.PortfolioAnalysisPanel));
 const MobileBulkEditor = dynamic(() => import("@/components/dashboard/mobile-bulk-editor").then((module) => module.MobileBulkEditor));
+const MarketOverviewPanel = dynamic(() => import("@/components/dashboard/market-overview-panel").then((module) => module.MarketOverviewPanel));
 
 // ── 유틸 ────────────────────────────────────────────────
 function initials(name: string): string {
@@ -2564,7 +2565,7 @@ export default function DashboardPage() {
       ? "pension"
       : null;
 
-  const title = activeTab === "전체" ? "전체 자산 현황" : activeTab;
+  const title = activeTab === "전체" ? "전체 자산 현황" : activeTab === "시장" ? "시장 동향" : activeTab;
   const latestBenchmarkDate = benchmarkSeries
     .flatMap((series) => series.points.map((point) => point.date))
     .sort()
@@ -2592,21 +2593,23 @@ export default function DashboardPage() {
   return (
     <div className="dashboard-app flex min-h-screen bg-[#f8f9fc] dark:bg-[#0f1923]">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refreshDashboard} refreshing={refreshing} />
+      <MobileHeader activeTab={activeTab} onTabChange={setActiveTab} onRefetch={refreshDashboard} refreshing={refreshing} showRefresh={activeTab !== "시장"} />
 
       <main className="flex-1 overflow-auto pt-[88px] md:pt-0 md:px-8 md:py-8 md:ml-56">
         {/* 데스크톱 헤더 */}
         <div className="hidden md:flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
           <div className="flex items-center gap-2">
-            <button
-              onClick={refreshDashboard}
-              disabled={refreshing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: "#3d47cf" }}
-            >
-              {refreshing ? "⏳ 새로고침 중..." : "↻ 새로고침"}
-            </button>
+            {activeTab !== "시장" && (
+              <button
+                onClick={refreshDashboard}
+                disabled={refreshing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "#3d47cf" }}
+              >
+                {refreshing ? "⏳ 새로고침 중..." : "↻ 새로고침"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -2615,6 +2618,10 @@ export default function DashboardPage() {
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h1>
         </div>
 
+        {activeTab === "시장" ? (
+          <MarketOverviewPanel />
+        ) : (
+          <>
         {/* 에러 */}
         {error && (
           <div className="mx-4 md:mx-0 mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -3062,6 +3069,8 @@ export default function DashboardPage() {
           <p className="px-4 md:px-0 mb-6 text-xs text-gray-400 text-right">
             마지막 업데이트: {new Date(data.updatedAt).toLocaleString("ko-KR")}
           </p>
+        )}
+          </>
         )}
       </main>
 
