@@ -132,7 +132,7 @@ function MarketDetail({ item }: { item: MarketInstrument }) {
         {item.points.length < 2 ? (
           <div className="flex h-full items-center justify-center text-sm text-gray-400">기간 추이 데이터가 없습니다.</div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <AreaChart data={item.points.slice(-30)} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
               <defs>
                 <linearGradient id={`market-fill-${item.id}`} x1="0" y1="0" x2="0" y2="1">
