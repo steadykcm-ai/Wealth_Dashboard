@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { Fragment, useState, useRef, useEffect, useMemo } from "react";
 import { useAssets } from "@/lib/useAssets";
+import { useDashboardData } from "@/lib/useDashboardData";
 import { formatKRW, formatRate } from "@/lib/number-format";
 import { validatePortfolioSummary } from "@/lib/portfolio-validation";
 import type { AssetUpdates, BulkAssetUpdate, EditableAssetField } from "@/lib/asset-updates";
@@ -13,22 +14,12 @@ import type {
   PortfolioBreakdown,
   AccountGroup,
   DailyLogItem,
-  BenchmarkSeries,
   PortfolioChangeCandidate,
   PortfolioEvent,
   PortfolioEventType,
-  SyncJob,
-  SyncRun,
   RebalanceCategory,
   RebalanceTarget,
 } from "@/lib/types";
-
-type ProfitLogMeta = {
-  basis: "daily_close";
-  latestLogDate: string | null;
-  isTodayConfirmed: boolean;
-  today: string;
-};
 
 interface TodayQuote {
   price: number;
@@ -63,6 +54,9 @@ const BackupPanel = dynamic(() => import("@/components/dashboard/backup-panel").
 const PortfolioAnalysisPanel = dynamic(() => import("@/components/dashboard/portfolio-analysis-panel").then((module) => module.PortfolioAnalysisPanel));
 const MobileBulkEditor = dynamic(() => import("@/components/dashboard/mobile-bulk-editor").then((module) => module.MobileBulkEditor));
 const MarketOverviewPanel = dynamic(() => import("@/components/dashboard/market-overview-panel").then((module) => module.MarketOverviewPanel));
+const MonthlyInvestmentReport = dynamic(() => import("@/components/dashboard/portfolio-insight-panels").then((module) => module.MonthlyInvestmentReport));
+const PortfolioRiskPanel = dynamic(() => import("@/components/dashboard/portfolio-insight-panels").then((module) => module.PortfolioRiskPanel));
+const RebalancePanel = dynamic(() => import("@/components/dashboard/rebalance-panel").then((module) => module.RebalancePanel));
 
 // ── 유틸 ────────────────────────────────────────────────
 function initials(name: string): string {
@@ -216,230 +210,6 @@ const CATEGORY_COLORS: Record<AssetCategory, string> = {
   IRP: "#4db8a8",
 };
 
-function MonthlyInvestmentReport({
-  logs,
-  events,
-  unreviewedCount,
-}: {
-  logs: DailyLogItem[];
-  events: PortfolioEvent[];
-  unreviewedCount: number;
-}) {
-  const sortedLogs = useMemo(
-    () => [...logs].sort((left, right) => left.date.localeCompare(right.date)),
-    [logs]
-  );
-  const availableMonths = useMemo(
-    () => Array.from(new Set(sortedLogs.map((log) => log.date.slice(0, 7)))).sort().reverse().slice(0, 12),
-    [sortedLogs]
-  );
-  const [selectedMonth, setSelectedMonth] = useState("");
-
-  useEffect(() => {
-    if (availableMonths.length === 0) {
-      setSelectedMonth("");
-      return;
-    }
-    if (!availableMonths.includes(selectedMonth)) setSelectedMonth(availableMonths[0]);
-  }, [availableMonths, selectedMonth]);
-
-  const report = useMemo(() => {
-    if (!selectedMonth) return null;
-    const monthLogs = sortedLogs.filter((log) => log.date.startsWith(selectedMonth));
-    if (monthLogs.length === 0) return null;
-
-    const firstMonthLog = monthLogs[0];
-    const endLog = monthLogs.at(-1) ?? firstMonthLog;
-    const startLog = sortedLogs.filter((log) => log.date < firstMonthLog.date).at(-1) ?? firstMonthLog;
-    const periodEvents = events.filter((event) => (
-      event.date > startLog.date
-      && event.date <= endLog.date
-      && event.eventType !== "ignored"
-    ));
-    const netFlow = periodEvents.reduce((sum, event) => (
-      event.eventType === "deposit" || event.eventType === "withdrawal"
-        ? sum + event.amount
-        : sum
-    ), 0);
-    const valuationAdjustment = periodEvents.reduce((sum, event) => (
-      event.eventType === "valuation_adjustment" ? sum + event.amount : sum
-    ), 0);
-    const assetChange = endLog.total.total - startLog.total.total;
-    const investmentProfit = assetChange - netFlow - valuationAdjustment;
-
-    let previousDate = startLog.date;
-    let previousValue = startLog.total.total;
-    let returnFactor = 1;
-    monthLogs.filter((log) => log.date > startLog.date).forEach((log) => {
-      const intervalEvents = periodEvents.filter((event) => (
-        event.date > previousDate && event.date <= log.date
-      ));
-      const intervalFlow = intervalEvents.reduce((sum, event) => (
-        event.eventType === "deposit" || event.eventType === "withdrawal"
-          ? sum + event.amount
-          : sum
-      ), 0);
-      const intervalAdjustment = intervalEvents.reduce((sum, event) => (
-        event.eventType === "valuation_adjustment" ? sum + event.amount : sum
-      ), 0);
-      if (previousValue > 0) {
-        returnFactor *= 1 + ((log.total.total - intervalFlow - intervalAdjustment - previousValue) / previousValue);
-      }
-      previousDate = log.date;
-      previousValue = log.total.total;
-    });
-
-    const startAccounts = new Map(
-      startLog.accounts.map((account) => [`${account.category}|${account.accountName}`, account] as const)
-    );
-    const endAccounts = new Map(
-      endLog.accounts.map((account) => [`${account.category}|${account.accountName}`, account] as const)
-    );
-    const accountKeys = new Set([...startAccounts.keys(), ...endAccounts.keys()]);
-    const accountContributions = Array.from(accountKeys).map((key) => {
-      const startAccount = startAccounts.get(key);
-      const endAccount = endAccounts.get(key);
-      const [category, accountName] = key.split("|", 2) as ["stocks" | "pension", string];
-      const accountEvents = periodEvents.filter((event) => (
-        event.category === category && event.accountName === accountName
-      ));
-      const accountFlow = accountEvents.reduce((sum, event) => (
-        event.eventType === "deposit"
-        || event.eventType === "withdrawal"
-        || event.eventType === "transfer_in"
-        || event.eventType === "transfer_out"
-          ? sum + event.amount
-          : sum
-      ), 0);
-      const accountAdjustment = accountEvents.reduce((sum, event) => (
-        event.eventType === "valuation_adjustment" ? sum + event.amount : sum
-      ), 0);
-      const startValue = startAccount?.total ?? 0;
-      const endValue = endAccount?.total ?? 0;
-      return {
-        key,
-        category,
-        accountName,
-        endValue,
-        investmentProfit: endValue - startValue - accountFlow - accountAdjustment,
-      };
-    }).sort((left, right) => Math.abs(right.investmentProfit) - Math.abs(left.investmentProfit));
-
-    return {
-      startDate: startLog.date,
-      endDate: endLog.date,
-      assetChange,
-      netFlow,
-      valuationAdjustment,
-      investmentProfit,
-      returnRate: (returnFactor - 1) * 100,
-      accountContributions,
-      eventCount: periodEvents.length,
-      hasPriorBaseline: startLog.date < firstMonthLog.date,
-    };
-  }, [events, selectedMonth, sortedLogs]);
-
-  if (availableMonths.length === 0) return null;
-
-  const maxContribution = Math.max(
-    1,
-    ...(report?.accountContributions.map((account) => Math.abs(account.investmentProfit)) ?? [])
-  );
-
-  return (
-    <section className="mb-6 px-4 md:px-0" aria-label="월간 투자 리포트">
-      <div className="overflow-hidden rounded-xl border border-[#e0e0e0] bg-white dark:border-[#2a3a4a] dark:bg-[#1a2332]">
-        <div className="flex items-center justify-between gap-3 border-b border-[#e0e0e0] px-4 py-3 dark:border-[#2a3a4a]">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">월간 투자 리포트</h2>
-            {report && <p className="mt-0.5 text-[11px] text-gray-400">{report.startDate} → {report.endDate}</p>}
-          </div>
-          <select
-            aria-label="리포트 월 선택"
-            value={selectedMonth}
-            onChange={(event) => setSelectedMonth(event.target.value)}
-            className="rounded-md border border-[#d6d9e0] bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-gray-200"
-          >
-            {availableMonths.map((month) => {
-              const [year, monthNumber] = month.split("-");
-              return <option key={month} value={month}>{year}년 {Number(monthNumber)}월</option>;
-            })}
-          </select>
-        </div>
-
-        {!report ? (
-          <p className="px-4 py-8 text-center text-sm text-gray-400">월간 데이터를 계산하는 중</p>
-        ) : (
-          <>
-            <div className="grid grid-cols-3 divide-x divide-[#e0e0e0] border-b border-[#e0e0e0] dark:divide-[#2a3a4a] dark:border-[#2a3a4a]">
-              <div className="min-w-0 px-3 py-4 md:px-4">
-                <span className="block text-[11px] text-gray-400">투자손익</span>
-                <strong className="mt-1 block text-sm md:text-base" style={{ color: rateColor(report.investmentProfit) }}>
-                  {report.investmentProfit >= 0 ? "+" : ""}{formatKRW(report.investmentProfit)}
-                </strong>
-                <span className="mt-0.5 block text-[10px]" style={{ color: rateColor(report.returnRate) }}>
-                  {formatRate(report.returnRate)}
-                </span>
-              </div>
-              <div className="min-w-0 px-3 py-4 text-center md:px-4">
-                <span className="block text-[11px] text-gray-400">순입출금</span>
-                <strong className="mt-1 block text-sm text-gray-900 dark:text-white md:text-base">
-                  {report.netFlow >= 0 ? "+" : ""}{formatKRW(report.netFlow)}
-                </strong>
-                {report.valuationAdjustment !== 0 && (
-                  <span className="mt-0.5 block text-[10px] text-gray-400">조정 {formatKRW(report.valuationAdjustment)}</span>
-                )}
-              </div>
-              <div className="min-w-0 px-3 py-4 text-right md:px-4">
-                <span className="block text-[11px] text-gray-400">자산 증감</span>
-                <strong className="mt-1 block text-sm text-gray-900 dark:text-white md:text-base">
-                  {report.assetChange >= 0 ? "+" : ""}{formatKRW(report.assetChange)}
-                </strong>
-                <span className="mt-0.5 block text-[10px] text-gray-400">분류 {report.eventCount}건</span>
-              </div>
-            </div>
-
-            {(!report.hasPriorBaseline || unreviewedCount > 0) && (
-              <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-                {!report.hasPriorBaseline ? "월 시작 전 기준 로그 없음" : `미분류 변동 ${unreviewedCount}건`}
-              </div>
-            )}
-
-            <div className="px-4 py-3">
-              <h3 className="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400">계좌별 투자손익 기여</h3>
-              {report.accountContributions.length === 0 ? (
-                <p className="py-4 text-center text-xs text-gray-400">계좌별 로그가 없습니다.</p>
-              ) : report.accountContributions.slice(0, 5).map((account) => (
-                <div key={account.key} className="grid grid-cols-[minmax(0,1fr)_96px] items-center gap-3 border-b border-[#f0f0f0] py-2.5 last:border-b-0 dark:border-[#2a3a4a]">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-xs font-semibold text-gray-900 dark:text-white">{account.accountName}</span>
-                      <span className="shrink-0 text-[10px] text-gray-400">{account.category === "stocks" ? "주식" : "연금"}</span>
-                    </div>
-                    <div className="mt-1 h-1.5 overflow-hidden bg-gray-100 dark:bg-[#0f1923]">
-                      <div
-                        className={account.investmentProfit >= 0 ? "h-full bg-[#f44336]" : "h-full bg-[#1565c0]"}
-                        style={{
-                          width: account.investmentProfit === 0
-                            ? "0%"
-                            : `${Math.max(2, (Math.abs(account.investmentProfit) / maxContribution) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <span className="text-right text-xs font-semibold" style={{ color: rateColor(account.investmentProfit) }}>
-                    {account.investmentProfit >= 0 ? "+" : ""}{formatKRW(account.investmentProfit)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </section>
-  );
-}
-
 interface AllocationDriftItem {
   category: "개별주식" | "개인연금";
   name: string;
@@ -497,402 +267,7 @@ function useAllocationDriftItems(groups: AssetGroup[]): AllocationDriftItem[] {
   }).sort((left, right) => Math.abs(right.difference) - Math.abs(left.difference)), [groups, targets]);
 }
 
-function PortfolioRiskPanel({ groups, logs, events }: { groups: AssetGroup[]; logs: DailyLogItem[]; events: PortfolioEvent[] }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const items = groups.flatMap((group) => group.items).sort((left, right) => right.currentValue - left.currentValue);
-  const totalValue = items.reduce((sum, item) => sum + item.currentValue, 0);
-  const largestWeight = totalValue > 0 ? ((items[0]?.currentValue ?? 0) / totalValue) * 100 : 0;
-  const topFiveWeight = totalValue > 0
-    ? (items.slice(0, 5).reduce((sum, item) => sum + item.currentValue, 0) / totalValue) * 100
-    : 0;
-  const sortedLogs = [...logs].sort((left, right) => left.date.localeCompare(right.date));
-  let performanceIndex = 100;
-  let peak = 100;
-  let maxDrawdown = 0;
-  sortedLogs.slice(1).forEach((log, index) => {
-    const previousLog = sortedLogs[index];
-    const intervalEvents = events.filter((event) => (
-      event.date > previousLog.date && event.date <= log.date && event.eventType !== "ignored"
-    ));
-    const intervalFlow = intervalEvents.reduce((sum, event) => (
-      event.eventType === "deposit" || event.eventType === "withdrawal" ? sum + event.amount : sum
-    ), 0);
-    const intervalAdjustment = intervalEvents.reduce((sum, event) => (
-      event.eventType === "valuation_adjustment" ? sum + event.amount : sum
-    ), 0);
-    if (previousLog.total.total > 0) {
-      performanceIndex *= 1 + ((log.total.total - intervalFlow - intervalAdjustment - previousLog.total.total) / previousLog.total.total);
-      peak = Math.max(peak, performanceIndex);
-      maxDrawdown = Math.min(maxDrawdown, ((performanceIndex - peak) / peak) * 100);
-    }
-  });
-  const riskCount = Number(largestWeight >= 20) + Number(topFiveWeight >= 60) + Number(maxDrawdown <= -15);
-  const stressScenarios = [-10, -20, -30].map((shock) => ({
-    shock,
-    loss: totalValue * (shock / 100),
-    remaining: totalValue * (1 + shock / 100),
-  }));
-
-  if (totalValue <= 0) return null;
-
-  return (
-    <section className="mb-6 px-4 md:px-0" aria-label="포트폴리오 위험 분석">
-      <div className="overflow-hidden rounded-xl border border-[#e0e0e0] bg-white dark:border-[#2a3a4a] dark:bg-[#1a2332]">
-        <button type="button" onClick={() => setIsExpanded((previous) => !previous)} aria-expanded={isExpanded} className="flex w-full items-center justify-between gap-3 border-b border-[#e0e0e0] bg-[#f8f9fc] px-4 py-3 text-left dark:border-[#2a3a4a] dark:bg-[#0f1923]">
-          <span><span className="block text-sm font-semibold text-[#3d47cf]">위험 분석</span><span className="mt-0.5 block text-[11px] text-gray-400">{riskCount > 0 ? `주의 지표 ${riskCount}개` : "집중도 안정"}</span></span>
-          <span className="text-sm text-gray-400">{isExpanded ? "▲" : "▼"}</span>
-        </button>
-        {isExpanded && (
-          <>
-            <div className="grid grid-cols-3 divide-x divide-[#e0e0e0] border-b border-[#e0e0e0] dark:divide-[#2a3a4a] dark:border-[#2a3a4a]">
-              <div className="px-3 py-4 md:px-4"><span className="block text-[11px] text-gray-400">최대 종목</span><strong className="mt-1 block truncate text-sm text-gray-900 dark:text-white">{items[0]?.name}</strong><span className={largestWeight >= 20 ? "text-[10px] text-amber-600" : "text-[10px] text-gray-400"}>{largestWeight.toFixed(1)}%</span></div>
-              <div className="px-3 py-4 text-center md:px-4"><span className="block text-[11px] text-gray-400">상위 5종목</span><strong className="mt-1 block text-sm text-gray-900 dark:text-white">{topFiveWeight.toFixed(1)}%</strong><span className={topFiveWeight >= 60 ? "text-[10px] text-amber-600" : "text-[10px] text-gray-400"}>집중도</span></div>
-              <div className="px-3 py-4 text-right md:px-4"><span className="block text-[11px] text-gray-400">최대 낙폭</span><strong className="mt-1 block text-sm text-[#1565c0]">{maxDrawdown.toFixed(1)}%</strong><span className="text-[10px] text-gray-400">입출금 보정</span></div>
-            </div>
-            <div className="px-4 py-3">
-              <h3 className="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400">단순 충격 시나리오</h3>
-              {stressScenarios.map((scenario) => (
-                <div key={scenario.shock} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#f0f0f0] py-2.5 text-xs last:border-b-0 dark:border-[#2a3a4a]">
-                  <span className="font-semibold text-[#1565c0]">{scenario.shock}%</span>
-                  <div className="h-1.5 overflow-hidden bg-gray-100 dark:bg-[#0f1923]"><div className="h-full bg-[#1565c0]" style={{ width: `${Math.abs(scenario.shock)}%` }} /></div>
-                  <span className="text-right text-gray-600 dark:text-gray-300">{formatKRW(scenario.loss)} → {formatKRW(scenario.remaining)}</span>
-                </div>
-              ))}
-              <p className="mt-2 text-[10px] text-gray-400">전체 평가자산에 동일한 충격을 적용한 단순 계산</p>
-            </div>
-          </>
-        )}
-      </div>
-    </section>
-  );
-}
-
 // ── 리밸런싱 패널 ────────────────────────────────────────
-function RebalancePanel({
-  group,
-  category,
-}: {
-  group: AssetGroup;
-  category: RebalanceCategory;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [targetInputs, setTargetInputs] = useState<Record<number, string>>({});
-  const [contribution, setContribution] = useState("1000000");
-  const [loadingTargets, setLoadingTargets] = useState(true);
-  const [savingTargets, setSavingTargets] = useState(false);
-  const [targetError, setTargetError] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<string | null>(null);
-
-  const items = useMemo(
-    () => group.items
-      .filter((item): item is AssetItem & { id: number } => Number.isInteger(item.id))
-      .slice()
-      .sort((left, right) => right.currentValue - left.currentValue),
-    [group.items]
-  );
-  const accountByAssetId = useMemo(() => {
-    const accountMap: Record<number, string> = {};
-    group.accounts.forEach((account) => {
-      account.items.forEach((item) => {
-        if (item.id) accountMap[item.id] = account.name;
-      });
-    });
-    return accountMap;
-  }, [group.accounts]);
-  const holdingsTotal = items.reduce((sum, item) => sum + item.currentValue, 0);
-  const targetSum = items.reduce((sum, item) => sum + Number(targetInputs[item.id] || 0), 0);
-  const targetSumIsZero = Math.abs(targetSum) < 0.005;
-  const targetSumIsValid = Math.abs(targetSum - 100) <= 0.05;
-  const contributionAmount = Math.max(0, Number(contribution) || 0);
-
-  const planRows = useMemo(() => {
-    const finalPortfolioValue = holdingsTotal + contributionAmount;
-    const rows = items.map((item) => {
-      const currentWeight = holdingsTotal > 0 ? (item.currentValue / holdingsTotal) * 100 : 0;
-      const targetWeight = Number(targetInputs[item.id] || 0);
-      const targetValue = (targetWeight / 100) * finalPortfolioValue;
-      const gapValue = targetSumIsValid ? Math.max(0, targetValue - item.currentValue) : 0;
-      return {
-        item,
-        currentWeight,
-        targetWeight,
-        difference: targetWeight - currentWeight,
-        gapValue,
-        recommendedBuy: 0,
-      };
-    });
-    const totalGap = rows.reduce((sum, row) => sum + row.gapValue, 0);
-    if (totalGap <= 0) return rows;
-
-    const roundedBudget = Math.round(contributionAmount);
-    const rawBuys = rows.map((row) => (roundedBudget * row.gapValue) / totalGap);
-    const integerBuys = rawBuys.map((amount) => Math.floor(amount));
-    let remainder = roundedBudget - integerBuys.reduce((sum, amount) => sum + amount, 0);
-    const remainderOrder = rawBuys
-      .map((amount, index) => ({ index, fraction: amount - Math.floor(amount) }))
-      .sort((left, right) => right.fraction - left.fraction);
-    remainderOrder.forEach(({ index }) => {
-      if (remainder <= 0) return;
-      integerBuys[index] += 1;
-      remainder -= 1;
-    });
-
-    return rows.map((row, index) => ({ ...row, recommendedBuy: integerBuys[index] }));
-  }, [contributionAmount, holdingsTotal, items, targetInputs, targetSumIsValid]);
-
-  const orderPlan = useMemo(() => {
-    const roundedContribution = Math.round(contributionAmount);
-    const finalPortfolioValue = holdingsTotal + roundedContribution;
-    const rows = planRows.map((row) => {
-      const supportsUnitOrder = row.item.valuationMode !== "manual"
-        && Boolean(row.item.code)
-        && row.item.currentPrice > 0;
-      const orderQuantity = supportsUnitOrder
-        ? Math.floor(row.recommendedBuy / row.item.currentPrice)
-        : null;
-      const orderAmount = orderQuantity === null
-        ? row.recommendedBuy
-        : Math.round(orderQuantity * row.item.currentPrice);
-      const projectedWeight = finalPortfolioValue > 0
-        ? ((row.item.currentValue + orderAmount) / finalPortfolioValue) * 100
-        : 0;
-
-      return {
-        ...row,
-        supportsUnitOrder,
-        orderQuantity,
-        orderAmount,
-        projectedWeight,
-        projectedDifference: row.targetWeight - projectedWeight,
-      };
-    });
-    const totalOrderAmount = rows.reduce((sum, row) => sum + row.orderAmount, 0);
-    const remainingCash = Math.max(0, roundedContribution - totalOrderAmount);
-    const currentDrift = rows.reduce((sum, row) => sum + Math.abs(row.difference), 0) / 2;
-    const projectedDrift = rows.reduce((sum, row) => sum + Math.abs(row.projectedDifference), 0) / 2;
-
-    return { rows, totalOrderAmount, remainingCash, currentDrift, projectedDrift };
-  }, [contributionAmount, holdingsTotal, planRows]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingTargets(true);
-    setTargetError(null);
-    fetch(`/api/rebalance-targets?category=${category}`, { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) {
-          const body = await response.json() as { error?: string };
-          throw new Error(body.error ?? "목표 비중을 불러오지 못했습니다.");
-        }
-        return response.json() as Promise<{ targets: RebalanceTarget[] }>;
-      })
-      .then(({ targets }) => {
-        if (cancelled) return;
-        const nextInputs: Record<number, string> = {};
-        targets.forEach((target) => {
-          nextInputs[target.assetId] = `${target.targetWeight}`;
-        });
-        setTargetInputs(nextInputs);
-        const latestUpdatedAt = targets.map((target) => target.updatedAt).filter(Boolean).sort().at(-1);
-        setSavedAt(latestUpdatedAt ?? null);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setTargetError(error instanceof Error ? error.message : "목표 비중을 불러오지 못했습니다.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingTargets(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [category]);
-
-  function applyCurrentWeights() {
-    if (holdingsTotal <= 0 || items.length === 0) return;
-    const nextInputs: Record<number, string> = {};
-    let roundedTotal = 0;
-    items.forEach((item) => {
-      const weight = Math.round((item.currentValue / holdingsTotal) * 10000) / 100;
-      nextInputs[item.id] = weight.toFixed(2);
-      roundedTotal += weight;
-    });
-    const adjustment = Math.round((100 - roundedTotal) * 100) / 100;
-    nextInputs[items[0].id] = (Number(nextInputs[items[0].id]) + adjustment).toFixed(2);
-    setTargetInputs(nextInputs);
-    setTargetError(null);
-    setSavedAt(null);
-  }
-
-  async function saveTargets() {
-    if (savingTargets || (!targetSumIsZero && !targetSumIsValid)) return;
-    setSavingTargets(true);
-    setTargetError(null);
-    try {
-      const response = await fetch("/api/rebalance-targets", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category,
-          targets: items.map((item) => ({
-            assetId: item.id,
-            targetWeight: Number(targetInputs[item.id] || 0),
-          })),
-        }),
-      });
-      if (!response.ok) {
-        const body = await response.json() as { error?: string };
-        throw new Error(body.error ?? "목표 비중을 저장하지 못했습니다.");
-      }
-      const body = await response.json() as { targets: RebalanceTarget[] };
-      const latestUpdatedAt = body.targets.map((target) => target.updatedAt).filter(Boolean).sort().at(-1);
-      setSavedAt(latestUpdatedAt ?? new Date().toISOString());
-      window.dispatchEvent(new CustomEvent("rebalance-targets-updated"));
-    } catch (error: unknown) {
-      setTargetError(error instanceof Error ? error.message : "목표 비중을 저장하지 못했습니다.");
-    } finally {
-      setSavingTargets(false);
-    }
-  }
-
-  if (items.length === 0) return null;
-
-  return (
-    <section className="mx-4 mb-6 overflow-hidden rounded-xl border border-[#e0e0e0] bg-white dark:border-[#2a3a4a] dark:bg-[#1a2332] md:mx-0">
-      <button
-        type="button"
-        onClick={() => setIsExpanded((previous) => !previous)}
-        aria-expanded={isExpanded}
-        className="flex w-full items-center justify-between gap-3 border-b border-[#e0e0e0] bg-[#f8f9fc] px-4 py-3 text-left dark:border-[#2a3a4a] dark:bg-[#0f1923]"
-      >
-        <span>
-          <span className="block text-sm font-semibold text-[#3d47cf]">리밸런싱</span>
-          <span className="mt-0.5 block text-[11px] text-gray-400">
-            목표 {targetSum.toFixed(2)}%{savedAt ? ` · 저장 ${formatPriceUpdatedAt(savedAt)}` : ""}
-          </span>
-        </span>
-        <span className="shrink-0 text-sm text-gray-400">{isExpanded ? "▲" : "▼"}</span>
-      </button>
-
-      {isExpanded && (
-        <div>
-          <div className="grid gap-3 border-b border-[#e0e0e0] px-4 py-4 dark:border-[#2a3a4a] md:grid-cols-[minmax(180px,1fr)_auto] md:items-end">
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              추가 투자금
-              <input
-                type="number"
-                inputMode="numeric"
-                min="0"
-                step="10000"
-                value={contribution}
-                onChange={(event) => setContribution(event.target.value)}
-                className="mt-1 block w-full rounded-md border border-[#d6d9e0] bg-white px-3 py-2 text-right text-sm font-semibold text-gray-900 dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-white md:max-w-56"
-              />
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <button type="button" onClick={applyCurrentWeights} disabled={loadingTargets} className="rounded-md border border-[#d6d9e0] px-3 py-2 text-xs font-semibold text-gray-600 disabled:opacity-40 dark:border-[#3a4658] dark:text-gray-300">
-                현재 비중
-              </button>
-              <button type="button" onClick={() => { setTargetInputs({}); setSavedAt(null); }} disabled={loadingTargets} className="rounded-md border border-[#d6d9e0] px-3 py-2 text-xs font-semibold text-gray-600 disabled:opacity-40 dark:border-[#3a4658] dark:text-gray-300">
-                초기화
-              </button>
-              <button type="button" onClick={saveTargets} disabled={loadingTargets || savingTargets || (!targetSumIsZero && !targetSumIsValid)} className="rounded-md bg-[#3d47cf] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
-                {savingTargets ? "저장 중" : "저장"}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 border-b border-[#e0e0e0] px-4 py-2.5 text-xs dark:border-[#2a3a4a]">
-            <span className="text-gray-500">목표 합계</span>
-            <span className={`rounded-full px-2 py-0.5 font-semibold ${targetSumIsValid || targetSumIsZero ? "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"}`}>
-              {targetSum.toFixed(2)}%
-            </span>
-          </div>
-
-          {targetSumIsValid && contributionAmount > 0 && (
-            <div className="grid grid-cols-3 gap-3 border-b border-[#e0e0e0] px-4 py-3 text-xs dark:border-[#2a3a4a]">
-              <div>
-                <span className="block text-[11px] text-gray-400">주문 예정</span>
-                <strong className="mt-0.5 block text-gray-900 dark:text-white">{formatKRW(orderPlan.totalOrderAmount)}</strong>
-              </div>
-              <div className="text-center">
-                <span className="block text-[11px] text-gray-400">남는 현금</span>
-                <strong className="mt-0.5 block text-gray-900 dark:text-white">{formatKRW(orderPlan.remainingCash)}</strong>
-              </div>
-              <div className="text-right">
-                <span className="block text-[11px] text-gray-400">목표 격차</span>
-                <strong className="mt-0.5 block text-[#3d47cf]">{orderPlan.currentDrift.toFixed(2)} → {orderPlan.projectedDrift.toFixed(2)}%p</strong>
-              </div>
-            </div>
-          )}
-
-          {targetError && <p role="alert" className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{targetError}</p>}
-
-          <div className="hidden grid-cols-[minmax(220px,1fr)_90px_100px_90px_120px] gap-3 border-b border-[#e0e0e0] bg-[#f8f9fc] px-4 py-2 text-right text-[11px] font-semibold text-gray-400 dark:border-[#2a3a4a] dark:bg-[#0f1923] md:grid">
-            <span className="text-left">종목</span>
-            <span>현재 비중</span>
-            <span>목표 비중</span>
-            <span>차이</span>
-            <span>주문 제안</span>
-          </div>
-
-          <div className="max-h-[560px] overflow-y-auto">
-            {loadingTargets ? (
-              <p className="py-10 text-center text-sm text-gray-400">목표 비중 불러오는 중</p>
-            ) : orderPlan.rows.map((row) => (
-              <div key={row.item.id} className="grid grid-cols-[minmax(0,1fr)_88px] items-center gap-x-3 gap-y-2 border-b border-[#f0f0f0] px-4 py-3 last:border-b-0 dark:border-[#2a3a4a] md:grid-cols-[minmax(220px,1fr)_90px_100px_90px_120px]">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{row.item.name}</p>
-                  <p className="mt-0.5 truncate text-[11px] text-gray-400">{accountByAssetId[row.item.id] ?? "계좌 미확인"} · {formatKRW(row.item.currentValue)}</p>
-                </div>
-                <div className="hidden text-right text-xs font-medium text-gray-600 dark:text-gray-300 md:block">{row.currentWeight.toFixed(2)}%</div>
-                <label className="text-right text-[11px] text-gray-400 md:text-xs">
-                  <span className="md:hidden">목표</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    aria-label={`${row.item.name} 목표 비중`}
-                    value={targetInputs[row.item.id] ?? ""}
-                    onChange={(event) => {
-                      setTargetInputs((previous) => ({ ...previous, [row.item.id]: event.target.value }));
-                      setSavedAt(null);
-                    }}
-                    className="ml-1 w-16 rounded-md border border-[#d6d9e0] bg-white px-2 py-1.5 text-right text-xs font-semibold text-gray-900 dark:border-[#3a4658] dark:bg-[#0f1923] dark:text-white md:ml-0 md:w-20"
-                  />
-                  <span className="ml-1">%</span>
-                </label>
-                <div className="text-xs text-gray-500 md:text-right">
-                  <span className="md:hidden">현재 {row.currentWeight.toFixed(2)}% · 차이 </span>
-                  <span className={row.difference > 0.005 ? "font-semibold text-[#3d47cf]" : row.difference < -0.005 ? "text-gray-400" : "text-gray-500"}>
-                    {row.difference > 0 ? "+" : ""}{row.difference.toFixed(2)}%p
-                  </span>
-                </div>
-                <div className="text-right text-xs font-semibold text-gray-900 dark:text-white md:col-auto">
-                  <span className="mr-1 font-normal text-gray-400 md:hidden">주문</span>
-                  {targetSumIsValid && contributionAmount > 0 ? (
-                    <>
-                      <span className="block">
-                        {row.supportsUnitOrder ? `${row.orderQuantity?.toLocaleString("ko-KR")}주` : formatKRW(row.orderAmount)}
-                      </span>
-                      <span className="mt-0.5 block text-[10px] font-normal text-gray-400">
-                        {row.supportsUnitOrder ? `${formatKRW(row.orderAmount)} · ` : "금액 주문 · "}
-                        주문 후 {row.projectedWeight.toFixed(2)}%
-                      </span>
-                    </>
-                  ) : "—"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
 // ── AI 포트폴리오 분석 패널 ──────────────────────────────
 // ── 카테고리 카드 ────────────────────────────────────────
 function CategoryCard({
@@ -2098,83 +1473,38 @@ function PortfolioEventReviewModal({
 
 export default function DashboardPage() {
   const { data, loading, error, refreshing, refetch, reload } = useAssets();
+  const {
+    profitLogs,
+    benchmarkSeries,
+    performanceLoading,
+    performanceError,
+    portfolioEvents,
+    changeCandidates,
+    profitLogMeta,
+    syncRuns,
+    syncRunsLoading,
+    syncRunsError,
+    retryingJob,
+    fetchPerformanceData,
+    retrySyncJob,
+    refreshDashboard,
+  } = useDashboardData({ reloadAssets: reload, refetchAssets: refetch });
   const [activeTab, setActiveTab] = useState<string>("전체");
   const [itemOverrides, setItemOverrides] = useState<Record<string, Partial<AssetItem>>>({});
   const [cashOverrides, setCashOverrides] = useState<Record<string, number>>({});
   const [deletedKeys, setDeletedKeys] = useState<Set<string>>(new Set());
   const [addModalAccount, setAddModalAccount] = useState<AccountGroup | "new" | null>(null);
-  const [profitLogs, setProfitLogs] = useState<DailyLogItem[]>([]);
-  const [benchmarkSeries, setBenchmarkSeries] = useState<BenchmarkSeries[]>([]);
-  const [performanceLoading, setPerformanceLoading] = useState(true);
-  const [performanceError, setPerformanceError] = useState<string | null>(null);
-  const [portfolioEvents, setPortfolioEvents] = useState<PortfolioEvent[]>([]);
-  const [changeCandidates, setChangeCandidates] = useState<PortfolioChangeCandidate[]>([]);
   const [eventReviewOpen, setEventReviewOpen] = useState(false);
   const [savingEventKey, setSavingEventKey] = useState<string | null>(null);
   const [eventSaveError, setEventSaveError] = useState<string | null>(null);
-  const [profitLogMeta, setProfitLogMeta] = useState<ProfitLogMeta | null>(null);
   const [todayQuotes, setTodayQuotes] = useState<Record<string, TodayQuote>>({});
   const [todayQuotesLoading, setTodayQuotesLoading] = useState(false);
-  const [syncRuns, setSyncRuns] = useState<SyncRun[]>([]);
-  const [syncRunsLoading, setSyncRunsLoading] = useState(true);
-  const [syncRunsError, setSyncRunsError] = useState<string | null>(null);
-  const [retryingJob, setRetryingJob] = useState<SyncJob | null>(null);
   const [accountQuery, setAccountQuery] = useState("");
   const [accountSort, setAccountSort] = useState<AccountSortMode>("value");
   const [hideInactiveAccounts, setHideInactiveAccounts] = useState(false);
   const [collapsedAccounts, setCollapsedAccounts] = useState<Set<string>>(new Set());
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [bulkEditingAccount, setBulkEditingAccount] = useState<{ accountName: string; items: AssetItem[] } | null>(null);
-
-  const fetchSyncRuns = useCallback(async () => {
-    setSyncRunsLoading(true);
-    setSyncRunsError(null);
-    try {
-      const res = await fetch("/api/sync-runs", { cache: "no-store" });
-      if (!res.ok) {
-        const body = await res.json() as { error?: string };
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      const json = await res.json() as { runs: SyncRun[] };
-      setSyncRuns(json.runs);
-    } catch (syncError: unknown) {
-      setSyncRunsError(syncError instanceof Error ? syncError.message : "동기화 이력을 불러오지 못했습니다.");
-    } finally {
-      setSyncRunsLoading(false);
-    }
-  }, []);
-
-  const fetchPerformanceData = useCallback(async () => {
-    setPerformanceLoading(true);
-    setPerformanceError(null);
-    try {
-      const res = await fetch("/api/profits", { cache: "no-store" });
-      if (!res.ok) {
-        const body = await res.json() as { error?: string };
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      const json = (await res.json()) as {
-        data: DailyLogItem[];
-        benchmarks?: BenchmarkSeries[];
-        portfolioEvents?: PortfolioEvent[];
-        changeCandidates?: PortfolioChangeCandidate[];
-        meta?: ProfitLogMeta;
-      };
-      setProfitLogs(json.data);
-      setBenchmarkSeries(json.benchmarks ?? []);
-      setPortfolioEvents(json.portfolioEvents ?? []);
-      setChangeCandidates(json.changeCandidates ?? []);
-      setProfitLogMeta(json.meta ?? null);
-    } catch (performanceFetchError: unknown) {
-      setPerformanceError(
-        performanceFetchError instanceof Error
-          ? performanceFetchError.message
-          : "성과 데이터를 불러오지 못했습니다."
-      );
-    } finally {
-      setPerformanceLoading(false);
-    }
-  }, []);
 
   async function saveItemUpdates(item: AssetItem, updates: AssetUpdates) {
     const res = await fetch("/api/assets/item", {
@@ -2241,46 +1571,10 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    fetchPerformanceData();
-    fetchSyncRuns();
-  }, [fetchPerformanceData, fetchSyncRuns]);
-
-  useEffect(() => {
     setAccountQuery("");
     setCollapsedAccounts(new Set());
     setEditingAsset(null);
   }, [activeTab]);
-
-  async function retrySyncJob(job: SyncJob) {
-    if (retryingJob) return;
-    setRetryingJob(job);
-    setSyncRunsError(null);
-    try {
-      const res = await fetch("/api/sync-runs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job }),
-      });
-      if (!res.ok) {
-        const body = await res.json() as { error?: string };
-        throw new Error(body.error ?? "동기화 재시도에 실패했습니다.");
-      }
-
-      if (job === "prices") await reload();
-      if (job === "daily_log" || job === "benchmarks") await fetchPerformanceData();
-      await fetchSyncRuns();
-    } catch (syncError: unknown) {
-      setSyncRunsError(syncError instanceof Error ? syncError.message : "동기화 재시도에 실패했습니다.");
-      await fetchSyncRuns();
-    } finally {
-      setRetryingJob(null);
-    }
-  }
-
-  async function refreshDashboard() {
-    await refetch();
-    await fetchSyncRuns();
-  }
 
   async function savePortfolioEvent(
     candidate: PortfolioChangeCandidate,
@@ -2301,21 +1595,9 @@ export default function DashboardPage() {
         throw new Error(body.error ?? "변동 저장 실패");
       }
 
-      const refreshed = await fetch("/api/profits", { cache: "no-store" });
-      if (!refreshed.ok) throw new Error("성과 데이터 갱신 실패");
-      const json = (await refreshed.json()) as {
-        data: DailyLogItem[];
-        benchmarks?: BenchmarkSeries[];
-        portfolioEvents?: PortfolioEvent[];
-        changeCandidates?: PortfolioChangeCandidate[];
-        meta?: ProfitLogMeta;
-      };
-      setProfitLogs(json.data);
-      setBenchmarkSeries(json.benchmarks ?? []);
-      setPortfolioEvents(json.portfolioEvents ?? []);
-      setChangeCandidates(json.changeCandidates ?? []);
-      setProfitLogMeta(json.meta ?? null);
-      if ((json.changeCandidates ?? []).length === 0) setEventReviewOpen(false);
+      const refreshed = await fetchPerformanceData();
+      if (!refreshed) throw new Error("성과 데이터 갱신 실패");
+      if ((refreshed.changeCandidates ?? []).length === 0) setEventReviewOpen(false);
     } catch (error) {
       setEventSaveError(error instanceof Error ? error.message : "변동 저장 실패");
     } finally {

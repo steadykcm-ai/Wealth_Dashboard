@@ -109,7 +109,10 @@ export function NotificationCenter({
     }));
     (["prices", "daily_log", "benchmarks"] as SyncJob[]).forEach((job) => {
       const latest = runs.find((run) => run.job === job);
-      const latestSuccess = runs.find((run) => run.job === job && run.status !== "failed");
+      if (latest?.status === "running") return;
+      const latestSuccess = runs.find(
+        (run) => run.job === job && (run.status === "success" || run.status === "partial")
+      );
       const staleHours = job === "daily_log" ? 36 : 72;
       const stale = !latestSuccess || Date.now() - new Date(latestSuccess.finishedAt).getTime() > staleHours * 60 * 60 * 1000;
       if (latest?.status === "failed" || latest?.status === "partial" || stale) {
@@ -330,6 +333,7 @@ function syncJobLabel(job: SyncJob): string {
 }
 
 function syncRunDetail(run: SyncRun): string {
+  if (run.status === "running") return "작업 실행 중";
   if (run.errorMessage) return run.errorMessage;
   if (run.job === "prices") {
     const updated = typeof run.details.updated === "number" ? run.details.updated : 0;
@@ -402,6 +406,9 @@ export function DataSyncStatus({
         state: "error",
         message: latestRun.errorMessage,
       };
+    }
+    if (latestRun?.status === "running") {
+      return { job, label, value: "실행 중", state: "loading" };
     }
     if (!value) return { job, label, value: "기록 없음", state: "empty" };
     if (!lastSuccessfulRun) {
@@ -489,8 +496,8 @@ export function DataSyncStatus({
                 className="grid grid-cols-[72px_72px_minmax(0,1fr)] gap-2 border-b border-[#f0f0f0] px-3 py-2 text-xs last:border-b-0 dark:border-[#2a3a4a] md:grid-cols-[90px_100px_minmax(0,1fr)] md:px-4"
               >
                 <span className="font-medium text-gray-700 dark:text-gray-200">{syncJobLabel(run.job)}</span>
-                <span className={run.status === "failed" ? "text-red-600" : run.status === "partial" ? "text-amber-600" : "text-green-600"}>
-                  {run.status === "failed" ? "실패" : run.status === "partial" ? "일부 완료" : "완료"}
+                <span className={run.status === "failed" ? "text-red-600" : run.status === "partial" ? "text-amber-600" : run.status === "running" ? "text-[#3d47cf]" : "text-green-600"}>
+                  {run.status === "failed" ? "실패" : run.status === "partial" ? "일부 완료" : run.status === "running" ? "실행 중" : "완료"}
                 </span>
                 <span className="min-w-0 truncate text-gray-500 dark:text-gray-400" title={syncRunDetail(run)}>
                   {formatSyncRunTime(run.finishedAt)} · {syncRunDetail(run)}

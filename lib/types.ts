@@ -182,7 +182,7 @@ export interface DailyLogItem {
 }
 
 export type SyncJob = "prices" | "daily_log" | "benchmarks";
-export type SyncRunStatus = "success" | "partial" | "failed";
+export type SyncRunStatus = "running" | "success" | "partial" | "failed";
 export type SyncRunTrigger = "cron" | "manual";
 
 export interface SyncRun {

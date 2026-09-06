@@ -42,7 +42,6 @@ export async function GET() {
       .from("sync_runs")
       .select("id, job, status, trigger, started_at, finished_at, details, error_message")
       .eq("user_id", user.id)
-      .neq("status", "running")
       .order("started_at", { ascending: false })
       .limit(30);
 
