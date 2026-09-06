@@ -1,4 +1,6 @@
-# Google Sheets 자동 저장 설정 (Apps Script)
+# Google Sheets 자동 저장 설정 (레거시)
+
+> 이 문서는 Supabase 이전 전 운영 기록이다. 현재 대시보드는 이 자동화를 사용하지 않는다.
 
 ## 개요
 Google Sheets에 Apps Script를 추가하여 **매일 아침 8시**에 자산 현황을 자동으로 `Log_daily` 탭에 저장합니다.

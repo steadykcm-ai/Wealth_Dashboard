@@ -1,95 +1,116 @@
-# PLAN.md — 프로젝트 기획 및 진행 현황
+# Wealth Dashboard - 프로젝트 현황 및 로드맵
 
 ## 프로젝트 개요
-Google Sheets를 DB로 사용하는 개인 금융자산 대시보드.
-별도 DB 없이 스프레드시트만으로 자산 현황을 실시간 조회한다.
 
----
+Supabase에 저장한 주식·연금 자산을 KIS 시세와 결합해 조회하고, 자산 추이와 투자성과, 은퇴 계획, 시장 동향을 제공하는 개인용 금융 대시보드다.
 
-## 구조
+## 현재 아키텍처
 
-```
-finance-dashboard/
-├── app/
-│   ├── api/
-│   │   ├── assets/route.ts              # 자산 데이터 조회
-│   │   ├── deposits/route.ts            # 입금 기록
-│   │   ├── logs/route.ts                # 수익금 로그 조회
-│   │   ├── analysis/route.ts            # AI 분석
-│   │   └── cron/daily-profit/route.ts  # 매일 UTC 23시 자동 로그
-│   ├── page.tsx                         # 메인 대시보드
-│   ├── globals.css
-│   └── layout.tsx
-├── lib/
-│   ├── types.ts                         # 공유 타입 정의
-│   ├── sheetConfig.ts                   # 시트 탭 이름 · 컬럼 설정
-│   ├── sheets.ts                        # Google Sheets API 래퍼
-│   ├── profit-calculator.ts             # 손익 계산 순수 함수
-│   ├── profit-logger.ts                 # 수익금 로그 기록
-│   └── useAssets.ts                     # 클라이언트 데이터 훅
-├── CLAUDE.md
-├── PLAN.md
-└── .env.local
+```text
+Browser
+  -> Next.js App Router
+       -> 인증 API: Supabase Auth + 소유자 검사
+       -> 자산 데이터: Supabase PostgreSQL + RLS
+       -> 주식/시장 데이터: KIS Open API
+       -> 암호화폐 시장 지표: Upbit 공개 API
+       -> 보조 시계열: Yahoo Finance
+       -> 포트폴리오 분석: Gemini
+       -> 자동화: Vercel Cron
 ```
 
----
+### 기술 스택
 
-## Google Sheets 구조
+- Next.js 15 App Router, React 19, TypeScript strict
+- Tailwind CSS, Recharts
+- Supabase Auth, PostgreSQL, Row Level Security
+- KIS Open API, Upbit 공개 API, Yahoo Finance 보조 데이터
+- Gemini API
+- Vercel 배포 및 Cron
+- Node test runner, ESLint, GitHub Actions
 
-| 시트 탭 | 용도 | 컬럼 순서 |
-|---------|------|-----------|
-| 개별주식 | 국내·해외 주식 | A=종목명, B=수량, C=평균매입가, D=현재가 |
-| 개인연금 | 연금저축펀드 | A=종목명, B=수량, C=평균매입가, D=현재가 |
-| IRP | IRP 계좌 | A=종목명, B=수량, C=평균매입가, D=현재가 |
-| 암호화폐 | 코인 | A=종목명, B=수량, C=평균매입가, D=현재가 |
-| 수익금로그 | 일별 자동 기록 | A=날짜, B=총자산, C=수익금, D=수익률 |
-| 입금기록 | 수동 입금 기록 | A=날짜, B=구분, C=금액, D=메모 |
+## 완료된 기능
 
----
+### 자산과 계좌
 
-## 기능 로드맵
+- 주식·개인연금·IRP 자산 및 다계좌 그룹 관리
+- 종목 수량·평균단가·현재가·현금 수정
+- 모바일 종목 카드와 계좌별 일괄 편집
+- 코드가 없는 펀드 등의 직접 평가 자산
+- 계좌·자산군·전체 합계 검증
 
-### ✅ 완료
-- [x] Next.js 14 프로젝트 초기화
-- [x] Google Sheets Service Account 인증
-- [x] `batchGet` 기반 자산 데이터 조회 API (`/api/assets`)
-- [x] 손익 계산 로직 (`profit-calculator.ts`)
-- [x] `useAssets` 훅 (로딩·에러·refetch)
-- [x] Ghostfolio 스타일 대시보드 UI
-  - 네이비 사이드바
-  - Summary 카드 3개 (총 현재가치 / 평가손익 / 수익률)
-  - 탭 pill 필터
-  - 자산 테이블 (수익률 배지, 이니셜 아이콘, 수익률순 정렬)
-  - 로딩 스켈레톤 / 에러 카드
-  - 라이트·다크 모드
+### 가격과 기록
 
-### ⏳ 다음 작업
-- [ ] 입금 기록 탭 (`/api/deposits`) — 연금/예수금/배당금 입력 폼
-- [ ] 수익금 로그 탭 (`/api/logs`) — 날짜별 자산 변화 차트
-- [ ] AI 분석 탭 (`/api/analysis`) — Claude API 포트폴리오 분석
-- [ ] Cron Job (`/api/cron/daily-profit`) — Vercel Cron, 매일 UTC 23시
-- [ ] Vercel 배포 (`vercel deploy --prod`)
+- KIS 기반 국내 주식 현재가와 오늘 등락률
+- KIS 접근 토큰의 메모리·Supabase 24시간 캐시
+- 일별 총자산·자산군·계좌별 로그와 과거 로그 백필
+- KOSPI·S&P 500 벤치마크 기록
+- 동기화 실행 이력, 실패 원인, 작업별 수동 재시도
 
----
+### 분석과 계획
 
-## 데이터 흐름
+- 입금·출금·계좌이체·평가조정을 투자성과에서 분리
+- 누적·연환산 수익률, 최대 낙폭, 월별 성과
+- 목표 비중과 리밸런싱 주문 수량 계산
+- 월간 투자 리포트와 포트폴리오 위험 점검
+- 은퇴 생활비·연금·인출 순서를 반영한 시뮬레이션
+- Gemini 기반 주식·연금별 포트폴리오 분석
 
-```
-Google Sheets
-  └─ batchGet (1회 호출, 전체 탭)
-       └─ /api/assets (Next.js, revalidate 300s)
-            └─ useAssets 훅 (클라이언트)
-                 └─ page.tsx 렌더링
-```
+### 운영과 시장
 
----
+- Google OAuth와 단일 소유자 접근 제한
+- Supabase RLS와 서버 전용 관리자 클라이언트
+- 자동 백업·복원, CSV·PDF 내보내기, 알림센터
+- 주요국 증시·환율·원자재·암호화폐 시장 동향
+- CI에서 lint, test, build, 고위험 취약점 검사
 
-## 주요 의사결정 기록
+## 데이터 공급자 원칙
 
-| 결정 | 이유 |
-|------|------|
-| DB 없이 Google Sheets 사용 | 별도 인프라 불필요, 스프레드시트로 직접 수정 가능 |
-| `batchGet` 단일 호출 | Sheets API 쿼터(분당 60회) 절약 |
-| `revalidate: 300` | 실시간성보다 쿼터 보호 우선 |
-| Ghostfolio UI 스타일 | 금융 앱 특화 디자인, 라이트·다크 모드 모두 지원 |
-| Service Account 인증 | OAuth 리다이렉트 불필요, 서버사이드 전용 |
+| 데이터 영역 | 기본 공급자 | 보조 공급자 |
+|---|---|---|
+| 국내 주식 현재가·종가 | KIS | 없음 |
+| 주요국 증시·환율·원자재 | KIS | KIS 미지원 시계열만 Yahoo Finance |
+| 암호화폐 시장 동향 | Upbit 공개 API | 없음 |
+| 자산·계좌·일별 로그 | Supabase | 주기적 백업 |
+| AI 포트폴리오 분석 | Gemini | 규칙 기반 요약 |
+
+각 공급자의 실패는 다른 데이터 영역에 전파하지 않는다. 화면에는 공급자별 기준일, 수집 시각, 실패 상태를 구분해 표시한다.
+
+## 작업 로드맵
+
+### 1단계 - 구조와 문서 기준점 정리
+
+- [x] 실제 아키텍처에 맞게 프로젝트 문서 갱신
+- [x] 동기화 `running` 상태를 타입과 API에 반영
+- [x] 비대한 메인 페이지에서 도메인 컴포넌트와 상태 훅 분리
+- [x] 기존 UI와 계산 결과의 회귀 방지
+
+### 2단계 - 데이터 갱신 신뢰성 완성
+
+- [ ] 종가 동기화 순서를 현재가 -> 자산 로그 -> 벤치마크 -> 검증으로 고정
+- [ ] 장시간 실행 중인 작업의 실패 판정과 작업별 재시도
+- [ ] 시장 동향 snapshot을 Supabase에 저장해 첫 화면 응답 개선
+- [ ] 공급자별 갱신 시각·오류·캐시 사용 여부 표시
+- [ ] 중복 Cron 실행에도 날짜별 로그가 하나만 유지되도록 검증
+
+### 3단계 - 다계좌 유지관리 부담 축소
+
+- [ ] 계좌별 마지막 갱신일과 오래된 계좌 작업 목록
+- [ ] 계산 합계와 증권사 평가액의 계좌 대사
+- [ ] 미등록 종목·수량 차이·직접 평가 자산·미분류 금액 구분
+- [ ] 변경이 필요한 계좌만 이어서 수정하는 모바일 흐름
+- [ ] 공식 API가 추가될 수 있도록 증권사별 수집 어댑터 경계 정의
+
+## 완료 기준
+
+- 모든 변경은 `codex/*` 기능 브랜치에서 작업한다.
+- 기능 단위로 커밋하고 lint, test, build를 통과한 변경만 GitHub에 푸시한다.
+- 보안·DB 마이그레이션은 PR 검토 후 `master`에 반영한다.
+- 환경변수, 첨부파일, 개발 로그, 로컬 빌드 결과는 커밋하지 않는다.
+- 프로덕션 배포 후 모바일 390px와 데스크톱 1440px에서 핵심 흐름을 확인한다.
+
+## 레거시 문서
+
+- `GOOGLE_SHEETS_AUTOMATION.md`: Supabase 이전 전 자동화 기록
+- `MIGRATION_GUIDE.md`: 초기 `user_id` 마이그레이션 기록
+
+두 문서는 현재 운영 절차가 아니며 과거 의사결정 참고용으로만 유지한다.
