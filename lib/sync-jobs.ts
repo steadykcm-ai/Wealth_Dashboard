@@ -10,6 +10,21 @@ import type { SyncRunTrigger } from "@/lib/types";
 
 export { DASHBOARD_OWNER_USER_ID };
 
+export interface DailyClosePipelineResult {
+  success: boolean;
+  partial: boolean;
+  date: string;
+  steps: {
+    prices: SyncJobResult;
+    dailyLog: SyncJobResult;
+    benchmarks: SyncJobResult;
+  };
+  validation: {
+    dailyLogRows: number;
+    benchmarkSymbols: string[];
+  };
+}
+
 function getKoreaDateString(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
@@ -91,9 +106,8 @@ export async function runDailyLogSync(
   trigger: SyncRunTrigger
 ): Promise<SyncJobResult> {
   return executeSyncRun({ userId, job: "daily_log", trigger }, async () => {
-    const success = await saveDailyLog(userId);
-    if (!success) throw new Error("일일 자산 로그 저장에 실패했습니다.");
-    return { details: { date: getKoreaDateString() } };
+    const saved = await saveDailyLog(userId);
+    return { details: saved };
   });
 }
 
@@ -105,10 +119,65 @@ export async function runBenchmarkSync(
 ): Promise<SyncJobResult> {
   return executeSyncRun({ userId, job: "benchmarks", trigger }, async () => {
     const saved = await saveBenchmarkRange(startDate, endDate);
-    const totalSaved = saved.KOSPI + saved.SPX;
+    const bothSaved = saved.KOSPI > 0 && saved.SPX > 0;
     return {
-      status: totalSaved > 0 ? "success" : "partial",
+      status: bothSaved ? "success" : "partial",
       details: { startDate, endDate, KOSPI: saved.KOSPI, SPX: saved.SPX },
     };
   });
+}
+
+async function validateDailyClosePipeline(
+  userId: string,
+  date: string
+): Promise<DailyClosePipelineResult["validation"]> {
+  const admin = getRequiredSupabaseAdminClient();
+  const [{ count: dailyLogRows, error: dailyLogError }, { data: benchmarkRows, error: benchmarkError }] = await Promise.all([
+    admin
+      .from("daily_log")
+      .select("date", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("date", date),
+    admin
+      .from("benchmark_daily")
+      .select("symbol")
+      .eq("date", date)
+      .in("symbol", ["KOSPI", "SPX"]),
+  ]);
+
+  if (dailyLogError) throw dailyLogError;
+  if (benchmarkError) throw benchmarkError;
+  if (dailyLogRows !== 1) {
+    throw new Error(`일일 자산 로그 검증 실패: ${date} 기록이 ${dailyLogRows ?? 0}건입니다.`);
+  }
+
+  return {
+    dailyLogRows,
+    benchmarkSymbols: Array.from(new Set(
+      (benchmarkRows ?? []).flatMap((row) => typeof row.symbol === "string" ? [row.symbol] : [])
+    )).sort(),
+  };
+}
+
+export async function runDailyClosePipeline(
+  userId: string,
+  trigger: SyncRunTrigger
+): Promise<DailyClosePipelineResult> {
+  const date = getKoreaDateString();
+  const prices = await runPriceSync(userId, trigger);
+  const dailyLog = await runDailyLogSync(userId, trigger);
+  const benchmarks = await runBenchmarkSync(userId, trigger, date, date);
+  const validation = await validateDailyClosePipeline(userId, date);
+  const partial = prices.status === "partial"
+    || dailyLog.status === "partial"
+    || benchmarks.status === "partial"
+    || validation.benchmarkSymbols.length < 2;
+
+  return {
+    success: true,
+    partial,
+    date,
+    steps: { prices, dailyLog, benchmarks },
+    validation,
+  };
 }

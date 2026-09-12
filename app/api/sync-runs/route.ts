@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { isDashboardOwner } from "@/lib/auth-config";
 import { runBenchmarkSync, runDailyLogSync, runPriceSync } from "@/lib/sync-jobs";
+import { expireStaleSyncRuns, SyncRunAlreadyRunningError } from "@/lib/sync-runs";
 import type { SyncJob, SyncRun, SyncRunStatus, SyncRunTrigger } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,8 @@ export async function GET() {
     if (!user || !isDashboardOwner(user.id)) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    await expireStaleSyncRuns(user.id);
 
     const { data, error } = await supabaseServer
       .from("sync_runs")
@@ -77,6 +80,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, job, result });
   } catch (error: unknown) {
+    if (error instanceof SyncRunAlreadyRunningError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "동기화 재시도에 실패했습니다." },
       { status: 500 }

@@ -326,6 +326,15 @@ function formatSyncRunTime(timestamp: string): string {
   });
 }
 
+function formatSyncDuration(value: unknown): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  if (value < 1_000) return `${Math.round(value)}ms`;
+  if (value < 60_000) return `${(value / 1_000).toFixed(1)}초`;
+  const minutes = Math.floor(value / 60_000);
+  const seconds = Math.round((value % 60_000) / 1_000);
+  return `${minutes}분 ${seconds}초`;
+}
+
 function syncJobLabel(job: SyncJob): string {
   if (job === "prices") return "현재가";
   if (job === "daily_log") return "자산 로그";
@@ -335,6 +344,7 @@ function syncJobLabel(job: SyncJob): string {
 function syncRunDetail(run: SyncRun): string {
   if (run.status === "running") return "작업 실행 중";
   if (run.errorMessage) return run.errorMessage;
+  const duration = formatSyncDuration(run.details.durationMs);
   if (run.job === "prices") {
     const updated = typeof run.details.updated === "number" ? run.details.updated : 0;
     const totalCodes = typeof run.details.totalCodes === "number" ? run.details.totalCodes : 0;
@@ -346,14 +356,15 @@ function syncRunDetail(run: SyncRun): string {
       unused: "토큰 미사용",
       unknown: "토큰 상태 미확인",
     };
-    return `${updated}/${totalCodes}종목 · ${tokenLabels[tokenSource] ?? tokenSource}`;
+    return `${updated}/${totalCodes}종목 · ${tokenLabels[tokenSource] ?? tokenSource}${duration ? ` · ${duration}` : ""}`;
   }
   if (run.job === "daily_log") {
-    return typeof run.details.date === "string" ? run.details.date : "저장 완료";
+    const date = typeof run.details.date === "string" ? run.details.date : "저장 완료";
+    return `${date}${duration ? ` · ${duration}` : ""}`;
   }
   const kospi = typeof run.details.KOSPI === "number" ? run.details.KOSPI : 0;
   const spx = typeof run.details.SPX === "number" ? run.details.SPX : 0;
-  return `KOSPI ${kospi}건 · S&P 500 ${spx}건`;
+  return `KOSPI ${kospi}건 · S&P 500 ${spx}건${duration ? ` · ${duration}` : ""}`;
 }
 
 export function DataSyncStatus({

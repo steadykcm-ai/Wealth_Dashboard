@@ -43,9 +43,9 @@ export function useDashboardData({ reloadAssets, refetchAssets }: UseDashboardDa
   const [syncRunsError, setSyncRunsError] = useState<string | null>(null);
   const [retryingJob, setRetryingJob] = useState<SyncJob | null>(null);
 
-  const fetchSyncRuns = useCallback(async () => {
-    setSyncRunsLoading(true);
-    setSyncRunsError(null);
+  const fetchSyncRuns = useCallback(async (background = false) => {
+    if (!background) setSyncRunsLoading(true);
+    if (!background) setSyncRunsError(null);
     try {
       const response = await fetch("/api/sync-runs", { cache: "no-store" });
       if (!response.ok) {
@@ -57,7 +57,7 @@ export function useDashboardData({ reloadAssets, refetchAssets }: UseDashboardDa
     } catch (error: unknown) {
       setSyncRunsError(error instanceof Error ? error.message : "동기화 이력을 불러오지 못했습니다.");
     } finally {
-      setSyncRunsLoading(false);
+      if (!background) setSyncRunsLoading(false);
     }
   }, []);
 
@@ -89,6 +89,14 @@ export function useDashboardData({ reloadAssets, refetchAssets }: UseDashboardDa
     void fetchPerformanceData();
     void fetchSyncRuns();
   }, [fetchPerformanceData, fetchSyncRuns]);
+
+  useEffect(() => {
+    if (!syncRuns.some((run) => run.status === "running")) return;
+    const timeoutId = window.setTimeout(() => {
+      void fetchSyncRuns(true);
+    }, 15_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchSyncRuns, syncRuns]);
 
   const retrySyncJob = useCallback(async (job: SyncJob) => {
     if (retryingJob) return;

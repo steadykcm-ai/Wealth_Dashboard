@@ -357,39 +357,27 @@ export async function calculateDailyLog(userId: string): Promise<{
   return { daily, accounts };
 }
 
-export async function saveDailyLog(userId: string): Promise<boolean> {
-  try {
-    const supabase = getRequiredSupabaseAdminClient();
-    const { daily: dailyData, accounts } = await calculateDailyLog(userId);
-    const dataToSave = { ...dailyData, user_id: userId };
+export async function saveDailyLog(userId: string): Promise<{
+  date: string;
+  accountCount: number;
+}> {
+  const supabase = getRequiredSupabaseAdminClient();
+  const { daily: dailyData, accounts } = await calculateDailyLog(userId);
+  const dataToSave = { ...dailyData, user_id: userId };
 
-    const { data: updatedRows, error: updateError } = await supabase
-      .from("daily_log")
-      .update(dataToSave)
-      .eq("date", dailyData.date)
-      .eq("user_id", userId)
-      .select("date");
+  const { error: dailyLogError } = await supabase
+    .from("daily_log")
+    .upsert(dataToSave, { onConflict: "user_id,date" });
 
-    if (updateError) return false;
+  if (dailyLogError) throw dailyLogError;
 
-    if (!updatedRows || updatedRows.length === 0) {
-      const { error: insertError } = await supabase
-        .from("daily_log")
-        .insert(dataToSave);
+  if (accounts.length > 0) {
+    const { error: accountError } = await supabase
+      .from("daily_account_log")
+      .upsert(accounts, { onConflict: "user_id,date,category,account_name" });
 
-      if (insertError) return false;
-    }
-
-    if (accounts.length > 0) {
-      const { error: accountError } = await supabase
-        .from("daily_account_log")
-        .upsert(accounts, { onConflict: "user_id,date,category,account_name" });
-
-      if (accountError) return false;
-    }
-
-    return true;
-  } catch {
-    return false;
+    if (accountError) throw accountError;
   }
+
+  return { date: dailyData.date, accountCount: accounts.length };
 }
