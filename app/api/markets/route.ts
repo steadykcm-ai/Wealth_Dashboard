@@ -1,30 +1,27 @@
-import { revalidateTag, unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
+import { isDashboardOwner } from "@/lib/auth-config";
 import { collectMarketOverview } from "@/lib/market-data";
+import { readMarketSnapshot, saveMarketSnapshot } from "@/lib/market-snapshot";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
-const getCachedMarketOverview = unstable_cache(
-  collectMarketOverview,
-  ["market-overview-v1"],
-  { revalidate: 300, tags: ["market-overview"] }
-);
-
-async function isAuthenticated(): Promise<boolean> {
+async function getAuthenticatedUserId(): Promise<string | null> {
   const supabase = await createSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
-  return Boolean(user);
+  return user && isDashboardOwner(user.id) ? user.id : null;
 }
 
 export async function GET() {
   try {
-    if (!await isAuthenticated()) {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
-    const overview = await getCachedMarketOverview();
+    const snapshot = await readMarketSnapshot(userId);
+    const overview = snapshot ?? await saveMarketSnapshot(userId, await collectMarketOverview());
     return NextResponse.json(overview, {
-      headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=240" },
+      headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error: unknown) {
     return NextResponse.json(
@@ -36,11 +33,11 @@ export async function GET() {
 
 export async function POST() {
   try {
-    if (!await isAuthenticated()) {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
-    revalidateTag("market-overview");
-    const overview = await getCachedMarketOverview();
+    const overview = await saveMarketSnapshot(userId, await collectMarketOverview());
     return NextResponse.json(overview);
   } catch (error: unknown) {
     return NextResponse.json(

@@ -317,6 +317,11 @@ export function MarketOverviewPanel() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-right text-[11px] text-gray-400">{data ? `${formatUpdatedAt(data.updatedAt)} 수집` : "-"}<br />KIS 지수는 지연·종가 시세</span>
+          {data?.delivery && (
+            <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${data.delivery.mode === "snapshot" ? "bg-gray-100 text-gray-600 dark:bg-[#253247] dark:text-gray-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"}`}>
+              {data.delivery.mode === "snapshot" ? "저장본" : "방금 수집"}
+            </span>
+          )}
           <button type="button" onClick={() => void fetchMarkets(true)} disabled={refreshing} aria-label="시장 시세 새로고침" title="시장 시세 새로고침" className="flex h-9 w-9 items-center justify-center rounded-md bg-[#3d47cf] text-lg text-white disabled:opacity-50">
             {refreshing ? "…" : "↻"}
           </button>

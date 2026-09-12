@@ -147,6 +147,10 @@ export interface MarketOverviewResponse {
   updatedAt: string;
   partial: boolean;
   unavailableCount: number;
+  delivery?: {
+    mode: "snapshot" | "live";
+    storedAt: string;
+  };
 }
 
 export type PortfolioEventCategory = "stocks" | "pension";
