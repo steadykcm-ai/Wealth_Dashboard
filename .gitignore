@@ -34,6 +34,7 @@ next-env.d.ts
 
 # sensitive keys
 google-key.json.json
+namu.env.txt
 .env.local.vercel
 .claude/settings.local.json
 check_codes.js
