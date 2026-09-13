@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isDashboardOwner } from "@/lib/auth-config";
 import { fetchNhPlugPreview } from "@/lib/nhplug-client";
+import { buildNhPlugSyncPreview, type NhPlugDashboardAsset } from "@/lib/nhplug-sync-preview";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +15,21 @@ export async function GET() {
       return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
     }
 
-    const preview = await fetchNhPlugPreview();
-    return NextResponse.json(preview, {
+    const [preview, assetsResult] = await Promise.all([
+      fetchNhPlugPreview(),
+      supabase
+        .from("assets")
+        .select("id, code, name, quantity, avg_price")
+        .eq("user_id", user.id)
+        .eq("is_cash", false)
+        .neq("asset_type", "암호화폐"),
+    ]);
+    if (assetsResult.error) throw new Error(`대시보드 자산 조회 실패: ${assetsResult.error.message}`);
+
+    return NextResponse.json({
+      ...preview,
+      sync: buildNhPlugSyncPreview(preview, (assetsResult.data ?? []) as NhPlugDashboardAsset[]),
+    }, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error: unknown) {

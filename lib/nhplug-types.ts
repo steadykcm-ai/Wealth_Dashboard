@@ -42,3 +42,32 @@ export interface NhPlugPreviewResponse {
     cash: number;
   };
 }
+
+export type NhPlugSyncStatus = "new" | "quantity_mismatch" | "average_price_mismatch" | "matched" | "invalid";
+
+export interface NhPlugSyncCandidate {
+  key: string;
+  accountLabels: string[];
+  code: string;
+  name: string;
+  market: "domestic" | "us";
+  status: NhPlugSyncStatus;
+  nhQuantity: number;
+  dashboardQuantity?: number;
+  nhAveragePrice: number;
+  dashboardAveragePrice?: number;
+}
+
+export interface NhPlugSyncPreview {
+  total: number;
+  newCount: number;
+  quantityMismatchCount: number;
+  averagePriceMismatchCount: number;
+  matchedCount: number;
+  invalidCount: number;
+  candidates: NhPlugSyncCandidate[];
+}
+
+export interface NhPlugPreviewWithSyncResponse extends NhPlugPreviewResponse {
+  sync: NhPlugSyncPreview;
+}
