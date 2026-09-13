@@ -54,6 +54,7 @@ const BackupPanel = dynamic(() => import("@/components/dashboard/backup-panel").
 const PortfolioAnalysisPanel = dynamic(() => import("@/components/dashboard/portfolio-analysis-panel").then((module) => module.PortfolioAnalysisPanel));
 const MobileBulkEditor = dynamic(() => import("@/components/dashboard/mobile-bulk-editor").then((module) => module.MobileBulkEditor));
 const MarketOverviewPanel = dynamic(() => import("@/components/dashboard/market-overview-panel").then((module) => module.MarketOverviewPanel));
+const NhPlugPreviewPanel = dynamic(() => import("@/components/dashboard/nhplug-preview-panel").then((module) => module.NhPlugPreviewPanel));
 const MonthlyInvestmentReport = dynamic(() => import("@/components/dashboard/portfolio-insight-panels").then((module) => module.MonthlyInvestmentReport));
 const PortfolioRiskPanel = dynamic(() => import("@/components/dashboard/portfolio-insight-panels").then((module) => module.PortfolioRiskPanel));
 const RebalancePanel = dynamic(() => import("@/components/dashboard/rebalance-panel").then((module) => module.RebalancePanel));
@@ -1938,6 +1939,8 @@ export default function DashboardPage() {
         {activeTab === "전체" && portfolioValidation && (
           <PortfolioValidationPanel report={portfolioValidation} />
         )}
+
+        {activeTab === "전체" && <NhPlugPreviewPanel />}
 
         {/* Summary 카드 */}
         <div className="grid grid-cols-3 gap-2 px-4 md:px-0 mb-4 md:mb-6 md:gap-4">
