@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatKRW } from "@/lib/number-format";
-import type { NhPlugPreviewWithSyncResponse, NhPlugSyncStatus } from "@/lib/nhplug-types";
+import type { NhPlugPreviewWithSyncResponse, NhPlugSyncCandidate, NhPlugSyncStatus } from "@/lib/nhplug-types";
 
 function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString("ko-KR", {
@@ -19,8 +19,15 @@ export function NhPlugPreviewPanel() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<NhPlugPreviewWithSyncResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [applying, setApplying] = useState(false);
+  const [applyMessage, setApplyMessage] = useState<string | null>(null);
 
-  async function fetchPreview() {
+  function isSelectable(candidate: NhPlugSyncCandidate): boolean {
+    return candidate.status === "new" || candidate.status === "quantity_mismatch" || candidate.status === "average_price_mismatch";
+  }
+
+  async function fetchPreview(clearApplyMessage = true) {
     if (loading) return;
     setLoading(true);
     setError(null);
@@ -29,12 +36,44 @@ export function NhPlugPreviewPanel() {
       const body = await response.json() as NhPlugPreviewWithSyncResponse & { error?: string };
       if (!response.ok) throw new Error(body.error ?? "NH 계좌 연결 확인에 실패했습니다.");
       setData(body);
+      setSelectedKeys(body.sync.candidates.filter(isSelectable).map((candidate) => candidate.key));
+      if (clearApplyMessage) setApplyMessage(null);
       setExpanded(true);
     } catch (fetchError: unknown) {
       setError(fetchError instanceof Error ? fetchError.message : "NH 계좌 연결 확인에 실패했습니다.");
       setExpanded(true);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function toggleCandidate(key: string) {
+    setSelectedKeys((current) => current.includes(key)
+      ? current.filter((value) => value !== key)
+      : [...current, key]);
+  }
+
+  async function applySelected() {
+    if (applying || selectedKeys.length === 0) return;
+    if (!window.confirm(`${selectedKeys.length}개 종목을 NH 잔고 기준으로 반영할까요? 기존 종목은 삭제되지 않습니다.`)) return;
+
+    setApplying(true);
+    setApplyMessage(null);
+    try {
+      const response = await fetch("/api/brokers/nh/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selectedKeys }),
+      });
+      const body = await response.json() as { created?: number; updated?: number; skipped?: Array<{ name: string; reason: string }>; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "NH 종목 반영에 실패했습니다.");
+      const skipped = body.skipped?.length ?? 0;
+      setApplyMessage(`신규 ${body.created ?? 0}개 추가 · ${body.updated ?? 0}개 갱신${skipped > 0 ? ` · ${skipped}개 보류` : ""}`);
+      await fetchPreview(false);
+    } catch (applyError: unknown) {
+      setApplyMessage(applyError instanceof Error ? applyError.message : "NH 종목 반영에 실패했습니다.");
+    } finally {
+      setApplying(false);
     }
   }
 
@@ -116,6 +155,14 @@ export function NhPlugPreviewPanel() {
                 </div>
                 {data.sync.candidates.filter((candidate) => candidate.status !== "matched").map((candidate) => (
                   <div key={candidate.key} className="flex items-center justify-between gap-3 border-b border-[#f0f0f0] px-4 py-3 last:border-b-0 dark:border-[#2a3a4a]">
+                    <input
+                      type="checkbox"
+                      aria-label={`${candidate.name} 반영`}
+                      checked={selectedKeys.includes(candidate.key)}
+                      disabled={!isSelectable(candidate) || applying}
+                      onChange={() => toggleCandidate(candidate.key)}
+                      className="h-4 w-4 shrink-0 accent-[#3d47cf] disabled:opacity-40"
+                    />
                     <div className="min-w-0">
                       <p className="truncate text-xs font-semibold text-gray-900 dark:text-white">{candidate.name}</p>
                       <p className="mt-0.5 text-[10px] text-gray-400">{candidate.code} · NH {candidate.nhQuantity.toLocaleString("ko-KR")}주{candidate.dashboardQuantity !== undefined ? ` · 대시보드 ${candidate.dashboardQuantity.toLocaleString("ko-KR")}주` : ""}</p>
@@ -124,6 +171,15 @@ export function NhPlugPreviewPanel() {
                   </div>
                 ))}
                 {data.sync.candidates.every((candidate) => candidate.status === "matched") && <p className="px-4 py-3 text-xs text-gray-400">NH 보유 종목이 모두 대시보드와 일치합니다.</p>}
+                {applyMessage && <p role="status" className="border-t border-[#e0e0e0] px-4 py-3 text-xs text-gray-600 dark:border-[#2a3a4a] dark:text-gray-300">{applyMessage}</p>}
+                {data.sync.candidates.some(isSelectable) && (
+                  <div className="flex items-center justify-between gap-3 border-t border-[#e0e0e0] px-4 py-3 dark:border-[#2a3a4a]">
+                    <span className="text-xs text-gray-500">{selectedKeys.length}개 선택 · 삭제·현금 변경 제외</span>
+                    <button type="button" onClick={() => void applySelected()} disabled={selectedKeys.length === 0 || applying} className="shrink-0 rounded-md bg-[#3d47cf] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                      {applying ? "반영 중" : "선택 반영"}
+                    </button>
+                  </div>
+                )}
               </div>
               <p className="border-t border-[#e0e0e0] px-4 py-2 text-[10px] text-gray-400 dark:border-[#2a3a4a]">
                 {formatTimestamp(data.updatedAt)} 조회 · 토큰 만료 {formatTimestamp(data.tokenExpiresAt)} · 현재 자산은 변경하지 않았습니다

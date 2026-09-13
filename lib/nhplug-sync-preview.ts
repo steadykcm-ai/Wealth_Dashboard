@@ -28,7 +28,7 @@ interface AssetAggregate {
   averagePriceTotal: number;
 }
 
-function normalizeCode(code: string): string {
+export function normalizeNhPlugCode(code: string): string {
   const normalized = code.trim().toUpperCase().replace(/\.(KS|KQ|US)$/i, "");
   return normalized.replace(/[^A-Z0-9]/g, "");
 }
@@ -58,7 +58,7 @@ export function buildNhPlugSyncPreview(
 ): NhPlugSyncPreview {
   const dashboardByCode = new Map<string, AssetAggregate>();
   dashboardAssets.forEach((asset) => {
-    const code = normalizeCode(asset.code ?? "");
+    const code = normalizeNhPlugCode(asset.code ?? "");
     if (!code || asset.quantity <= 0) return;
     const current = dashboardByCode.get(code) ?? { quantity: 0, averagePriceTotal: 0 };
     current.quantity += asset.quantity;
@@ -69,7 +69,7 @@ export function buildNhPlugSyncPreview(
   const holdingsByCode = new Map<string, HoldingAggregate>();
   preview.accounts.forEach((account) => {
     account.holdings.forEach((holding: NhPlugHoldingPreview) => {
-      const code = normalizeCode(holding.code);
+      const code = normalizeNhPlugCode(holding.code);
       const key = code || `${account.accountId}:${holding.name}`;
       const current = holdingsByCode.get(key) ?? {
         accountLabels: [],
